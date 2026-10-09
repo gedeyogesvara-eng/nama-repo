@@ -6,3 +6,4 @@ numpy<2
 opencv-python==4.8.1.78
 librosa==0.10.1
 soundfile
+resampy
