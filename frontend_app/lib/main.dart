@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'screens/loading_scan_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +115,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
     {'id': 'result_moderate', 'name': '9. Hasil: Burnout'},
     {'id': 'result_extreme', 'name': '10. Hasil: Ekstrem'},
     {'id': 'history', 'name': '11. Riwayat Skrining'},
+    {'id': 'loading_scan', 'name': '12. AI Scan & Resep'},
   ];
 
   void _setScreen(String screenName) {
@@ -152,7 +154,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
     });
     Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted) {
-        _setScreen('loading');
+        _setScreen('loading_scan');
       }
     });
   }
@@ -400,6 +402,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         return _buildResultExtremeScreen();
       case 'history':
         return _buildHistoryScreen();
+      case 'loading_scan':
+        return const LoadingScanScreen();
       default:
         return _buildDashboardScreen();
     }
