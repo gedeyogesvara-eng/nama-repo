@@ -43,11 +43,57 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   void _parseData() {
-    final rawData = widget.detectionData['data_skrining'] as Map<String, dynamic>? ?? {};
-    _screeningData = Map<String, dynamic>.from(rawData);
+    Map<String, dynamic> rawData;
+    if (widget.detectionData.containsKey('data_skrining') &&
+        widget.detectionData['data_skrining'] is Map) {
+      rawData = Map<String, dynamic>.from(
+          widget.detectionData['data_skrining'] as Map);
+    } else if (widget.detectionData.containsKey('data') &&
+        widget.detectionData['data'] is Map) {
+      rawData =
+          Map<String, dynamic>.from(widget.detectionData['data'] as Map);
+    } else {
+      rawData = Map<String, dynamic>.from(widget.detectionData);
+    }
 
-    final rawRecipes = widget.detectionData['ai_recipes'] as List<dynamic>? ?? [];
-    _recipes = rawRecipes.map((r) => Map<String, dynamic>.from(r as Map<String, dynamic>)).toList();
+    if (!rawData.containsKey('kategori_burnout') ||
+        rawData['kategori_burnout'] == null) {
+      rawData['kategori_burnout'] = widget.detectionData['tingkat_depresi'] ??
+          widget.detectionData['depression_level'] ??
+          rawData['tingkat_depresi'] ??
+          rawData['status'] ??
+          'Kelelahan Terdeteksi';
+    }
+
+    _screeningData = rawData;
+
+    final rawRecipes = (widget.detectionData['ai_recipes'] ??
+            widget.detectionData['resep'] ??
+            widget.detectionData['rekomendasi_tindakan'] ??
+            widget.detectionData['recommendations'] ??
+            rawData['ai_recipes'] ??
+            rawData['resep']) as List<dynamic>? ??
+        [];
+
+    _recipes = rawRecipes.map((r) {
+      if (r is Map) {
+        return <String, dynamic>{
+          'id_resep': r['id_resep'] ?? 'REC-01',
+          'jenis_intervensi':
+              r['jenis_intervensi'] ?? r['kategori'] ?? 'Fisik',
+          'deskripsi_tugas':
+              r['deskripsi_tugas'] ?? r['deskripsi'] ?? r.toString(),
+          'is_completed': r['is_completed'] ?? false,
+        };
+      } else {
+        return <String, dynamic>{
+          'id_resep': 'REC-01',
+          'jenis_intervensi': 'Fisik',
+          'deskripsi_tugas': r.toString(),
+          'is_completed': false,
+        };
+      }
+    }).toList();
   }
 
   void _toggleRecipeCompletion(int index) {

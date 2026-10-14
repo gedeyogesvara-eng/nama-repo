@@ -6,7 +6,14 @@ import '../widgets/neo_card.dart';
 import 'stage3_visual_screen.dart';
 
 class Stage2PhysicalScreen extends StatefulWidget {
-  const Stage2PhysicalScreen({super.key});
+  final String? drawingImagePath;
+  final String? audioPath;
+
+  const Stage2PhysicalScreen({
+    super.key,
+    this.drawingImagePath,
+    this.audioPath,
+  });
 
   @override
   State<Stage2PhysicalScreen> createState() => _Stage2PhysicalScreenState();
@@ -18,6 +25,21 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
   bool _isFinished = false;
   int _stepCount = 0;
   Timer? _timer;
+
+  // Data sensor gait akselerometer (dummy list JSON & status gait_recorded)
+  final Map<String, dynamic> _gaitData = {
+    "status": "gait_recorded",
+    "step_count": 14,
+    "duration_seconds": 10,
+    "accelerometer_samples": [
+      {"t": 0.0, "x": 0.12, "y": 9.81, "z": 0.35},
+      {"t": 2.0, "x": 0.45, "y": 10.12, "z": 0.88},
+      {"t": 4.0, "x": 0.28, "y": 9.74, "z": 0.42},
+      {"t": 6.0, "x": 0.62, "y": 10.35, "z": 0.95},
+      {"t": 8.0, "x": 0.31, "y": 9.80, "z": 0.51},
+      {"t": 10.0, "x": 0.15, "y": 9.79, "z": 0.22},
+    ],
+  };
 
   void _startTracking() {
     _timer?.cancel();
@@ -47,15 +69,23 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
           _isFinished = true;
         });
         if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const Stage3VisualScreen(),
-            ),
-          );
+          _navigateToStage3();
         }
       }
     });
+  }
+
+  void _navigateToStage3() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Stage3VisualScreen(
+          drawingImagePath: widget.drawingImagePath,
+          audioPath: widget.audioPath,
+          gaitData: _gaitData,
+        ),
+      ),
+    );
   }
 
   @override
@@ -280,7 +310,9 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
               // Tracking Action Button
               if (!_isFinished) ...[
                 NeoButton(
-                  text: _isTracking ? "Sedang Merekam Langkah..." : "Mulai Berjalan (10 Detik)",
+                  text: _isTracking
+                      ? "Sedang Merekam Langkah..."
+                      : "Mulai Berjalan (10 Detik)",
                   icon: _isTracking ? Icons.sync : Icons.play_arrow_rounded,
                   backgroundColor: _isTracking
                       ? NeoColors.amber
@@ -299,14 +331,7 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                   textColor: NeoColors.white,
                   borderRadius: 28,
                   height: 56,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const Stage3VisualScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _navigateToStage3,
                 ),
                 const SizedBox(height: 10),
                 NeoButton(

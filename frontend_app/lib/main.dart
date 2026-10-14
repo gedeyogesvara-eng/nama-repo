@@ -1,7 +1,11 @@
+// ignore_for_file: unused_element
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/loading_scan_screen.dart';
+import 'screens/stage1_mental_screen.dart';
+import 'screens/stage2_physical_screen.dart';
+import 'screens/stage3_visual_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -387,11 +391,11 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
       case 'dashboard':
         return _buildDashboardScreen();
       case 'stage1':
-        return _buildStage1Screen();
+        return const Stage1MentalScreen();
       case 'stage2':
-        return _buildStage2Screen();
+        return const Stage2PhysicalScreen();
       case 'stage3':
-        return _buildStage3Screen();
+        return const Stage3VisualScreen();
       case 'loading':
         return _buildLoadingScreen();
       case 'result_healthy':

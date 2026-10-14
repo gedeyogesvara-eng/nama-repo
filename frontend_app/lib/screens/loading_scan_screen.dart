@@ -5,9 +5,21 @@ import 'result_screen.dart';
 
 /// Halaman Loading Scan AI
 /// Menampilkan animasi visual scanner multimodal (Sklera, Suara, Gait),
-/// memanggil simulasi inferensi AI (4 detik), lalu berpindah ke ResultScreen.
+/// mengirimkan berkas data multimodal ke AI Service lokal (http://10.0.2.2:5000/api/detect),
+/// lalu berpindah ke ResultScreen setelah respons diterima.
 class LoadingScanScreen extends StatefulWidget {
-  const LoadingScanScreen({super.key});
+  final String faceImagePath;
+  final String drawingImagePath;
+  final String audioPath;
+  final dynamic gaitData;
+
+  const LoadingScanScreen({
+    super.key,
+    this.faceImagePath = '',
+    this.drawingImagePath = '',
+    this.audioPath = '',
+    this.gaitData = 'gait_recorded',
+  });
 
   @override
   State<LoadingScanScreen> createState() => _LoadingScanScreenState();
@@ -26,12 +38,14 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
   late AnimationController _animController;
   int _currentStepIndex = 0;
   Timer? _stepTimer;
+  bool _isConnecting = true;
 
   final List<String> _analysisSteps = const [
+    'Mengunggah berkas sensor multimodal ke backend...',
     'Memindai vaskularisasi & mikrosleep sklera optik...',
     'Mengekstrak prosodi nada vokal & tremor akustik...',
     'Menganalisis simetri akselerometer gait berjalan...',
-    'Mengagregasi skor multimodal & menyusun resep AI...',
+    'Mengagregasi skor AI Multimodal & menyusun resep...',
   ];
 
   @override
@@ -44,8 +58,8 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
       duration: const Duration(milliseconds: 2400),
     )..repeat();
 
-    // Timer untuk mengubah teks tahapan analisis setiap ~1 detik
-    _stepTimer = Timer.periodic(const Duration(milliseconds: 950), (timer) {
+    // Timer untuk memutar teks tahapan analisis
+    _stepTimer = Timer.periodic(const Duration(milliseconds: 1400), (timer) {
       if (!mounted) return;
       if (_currentStepIndex < _analysisSteps.length - 1) {
         setState(() {
@@ -59,13 +73,22 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
   }
 
   Future<void> _processDetection() async {
+    setState(() {
+      _isConnecting = true;
+    });
+
     try {
-      // Panggil simulasi AI (delay 4 detik dan ambil data JSON)
-      final resultData = await AIService.simulateAIDetection();
+      // Panggil AI Service nyata via Multipart POST Request
+      final resultData = await AIService.sendDataToAI(
+        faceImagePath: widget.faceImagePath,
+        drawingImagePath: widget.drawingImagePath,
+        audioPath: widget.audioPath,
+        gaitData: widget.gaitData,
+      );
 
       if (!mounted) return;
 
-      // Navigasi pushReplacement ke ResultScreen
+      // Navigasi pushReplacement ke ResultScreen dengan data JSON nyata
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -73,14 +96,190 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
         ),
       );
     } catch (e) {
+      debugPrint("❌ Gagal terhubung ke AI Model: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Terjadi kesalahan deteksi: $e'),
-          backgroundColor: Colors.red[800],
-        ),
-      );
+      setState(() {
+        _isConnecting = false;
+      });
+      _showConnectionErrorDialog(e.toString());
     }
+  }
+
+  void _showConnectionErrorDialog(String errorMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: borderBlack, width: 3),
+              boxShadow: const [
+                BoxShadow(
+                  color: borderBlack,
+                  offset: Offset(5, 5),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderBlack, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off_rounded,
+                        color: Colors.red,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        "Koneksi AI Terputus",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: borderBlack,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  "Gagal menghubungi endpoint AI lokal:",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: borderBlack,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: borderBlack, width: 1.5),
+                  ),
+                  child: Text(
+                    AIService.defaultEndpoint,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      color: primaryBlue,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "Detail: $errorMessage",
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: grayText,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Tombol Coba Lagi
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    _processDetection();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: primaryBlue,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderBlack, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: borderBlack,
+                          offset: Offset(2.5, 2.5),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Coba Lagi",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Tombol Fallback / Demo Result
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    final fallbackData = AIService.normalizeResponse({
+                      "status": "success",
+                      "tingkat_depresi": "Burnout Sedang (Acoustic & Motoric)",
+                      "skor_sensor": {
+                        "audio": 78,
+                        "motorik": 65,
+                        "sklera": 84,
+                      },
+                      "rekomendasi_tindakan": [
+                        "Istirahatkan mata dari layar monitor setiap 20 menit.",
+                        "Lakukan latihan peregangan fisik ringan 5 menit.",
+                        "Dengarkan audio relaksasi pernapasan ritmik.",
+                      ],
+                    });
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ResultScreen(detectionData: fallbackData),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderBlack, width: 2),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Buka dengan Data Simulasi (Testing UI)",
+                        style: TextStyle(
+                          color: borderBlack,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -199,9 +398,9 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'INFERENSI AKTIF',
-              style: TextStyle(
+            Text(
+              _isConnecting ? 'HTTP REQUEST AKTIF' : 'MENUNGGU RESPONS',
+              style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 color: primaryBlue,
@@ -218,7 +417,7 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
             border: Border.all(color: borderBlack, width: 2),
           ),
           child: const Text(
-            'Model Multimodal v2.4',
+            'Local AI :5000',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w800,
@@ -329,11 +528,23 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildSensorNodeChip(Icons.remove_red_eye_outlined, 'Sklera', _currentStepIndex >= 0),
+        _buildSensorNodeChip(
+          Icons.remove_red_eye_outlined,
+          'Sklera',
+          _currentStepIndex >= 1,
+        ),
         const SizedBox(width: 8),
-        _buildSensorNodeChip(Icons.graphic_eq_rounded, 'Suara', _currentStepIndex >= 1),
+        _buildSensorNodeChip(
+          Icons.graphic_eq_rounded,
+          'Suara',
+          _currentStepIndex >= 2,
+        ),
         const SizedBox(width: 8),
-        _buildSensorNodeChip(Icons.directions_walk_rounded, 'Gait', _currentStepIndex >= 2),
+        _buildSensorNodeChip(
+          Icons.directions_walk_rounded,
+          'Gait',
+          _currentStepIndex >= 3,
+        ),
       ],
     );
   }
@@ -396,7 +607,7 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
           ),
           SizedBox(width: 10),
           Text(
-            'Proses inferensi membutuhkan waktu ±4 detik...',
+            'Mengirim data ke model AI lokal...',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
