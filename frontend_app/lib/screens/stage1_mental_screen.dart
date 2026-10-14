@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
 import '../widgets/offset_canvas_box.dart';
+import 'stage2_physical_screen.dart';
 
 class DrawingPoint {
   final Offset offset;
@@ -51,8 +55,15 @@ class Stage1MentalScreen extends StatefulWidget {
 class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
   final List<DrawingPoint?> _points = [];
   bool _isRecordingVoice = false;
-  int _voiceSeconds = 0;
+  int _voiceSeconds = 10;
+  Timer? _voiceTimer;
   Color _selectedColor = NeoColors.white;
+
+  @override
+  void dispose() {
+    _voiceTimer?.cancel();
+    super.dispose();
+  }
 
   void _clearCanvas() {
     setState(() {
@@ -60,13 +71,55 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
     });
   }
 
-  void _toggleVoiceRecording() {
-    setState(() {
-      _isRecordingVoice = !_isRecordingVoice;
-      if (_isRecordingVoice) {
-        _voiceSeconds = 5;
+  Future<void> _toggleVoiceRecording() async {
+    if (!_isRecordingVoice) {
+      if (!kIsWeb) {
+        final status = await Permission.microphone.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  "Izin mikrofon diperlukan untuk merekam analisis suara.",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                backgroundColor: NeoColors.redDark,
+              ),
+            );
+          }
+          return;
+        }
       }
-    });
+
+      setState(() {
+        _isRecordingVoice = true;
+        _voiceSeconds = 10;
+      });
+
+      _voiceTimer?.cancel();
+      _voiceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_voiceSeconds > 1) {
+          setState(() {
+            _voiceSeconds--;
+          });
+        } else {
+          timer.cancel();
+          setState(() {
+            _isRecordingVoice = false;
+            _voiceSeconds = 0;
+          });
+        }
+      });
+    } else {
+      _voiceTimer?.cancel();
+      setState(() {
+        _isRecordingVoice = false;
+      });
+    }
   }
 
   @override
@@ -137,45 +190,46 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                 child: Stack(
                   children: [
                     // Interactive Drawing Surface
-                    GestureDetector(
-                      onPanStart: (details) {
-                        final RenderBox renderBox =
-                            context.findRenderObject() as RenderBox;
-                        setState(() {
-                          _points.add(
-                            DrawingPoint(
-                              offset: details.localPosition,
-                              paint: Paint()
-                                ..color = _selectedColor
-                                ..isAntiAlias = true
-                                ..strokeWidth = 4.0
-                                ..strokeCap = StrokeCap.round,
-                            ),
-                          );
-                        });
-                      },
-                      onPanUpdate: (details) {
-                        setState(() {
-                          _points.add(
-                            DrawingPoint(
-                              offset: details.localPosition,
-                              paint: Paint()
-                                ..color = _selectedColor
-                                ..isAntiAlias = true
-                                ..strokeWidth = 4.0
-                                ..strokeCap = StrokeCap.round,
-                            ),
-                          );
-                        });
-                      },
-                      onPanEnd: (details) {
-                        setState(() {
-                          _points.add(null);
-                        });
-                      },
-                      child: CustomPaint(
-                        size: Size.infinite,
-                        painter: DrawingPainter(points: _points),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: GestureDetector(
+                        onPanStart: (details) {
+                          setState(() {
+                            _points.add(
+                              DrawingPoint(
+                                offset: details.localPosition,
+                                paint: Paint()
+                                  ..color = _selectedColor
+                                  ..isAntiAlias = true
+                                  ..strokeWidth = 4.0
+                                  ..strokeCap = StrokeCap.round,
+                              ),
+                            );
+                          });
+                        },
+                        onPanUpdate: (details) {
+                          setState(() {
+                            _points.add(
+                              DrawingPoint(
+                                offset: details.localPosition,
+                                paint: Paint()
+                                  ..color = _selectedColor
+                                  ..isAntiAlias = true
+                                  ..strokeWidth = 4.0
+                                  ..strokeCap = StrokeCap.round,
+                              ),
+                            );
+                          });
+                        },
+                        onPanEnd: (details) {
+                          setState(() {
+                            _points.add(null);
+                          });
+                        },
+                        child: CustomPaint(
+                          size: Size.infinite,
+                          painter: DrawingPainter(points: _points),
+                        ),
                       ),
                     ),
 
@@ -385,7 +439,7 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _isRecordingVoice
-                          ? "● Merekam Vokal... (00:0$_voiceSeconds / 00:10)"
+                          ? "● Merekam Vokal... (00:${_voiceSeconds < 10 ? '0$_voiceSeconds' : '$_voiceSeconds'} / 00:10)"
                           : "Ketuk mikrofon untuk mulai bicara",
                       style: TextStyle(
                         fontSize: 12,
@@ -410,7 +464,12 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                 borderRadius: 28,
                 height: 54,
                 onPressed: () {
-                  Navigator.pushNamed(context, '/stage2');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const Stage2PhysicalScreen(),
+                    ),
+                  );
                 },
               ),
               const SizedBox(height: 12),

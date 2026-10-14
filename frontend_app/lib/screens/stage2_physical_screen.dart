@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
+import 'stage3_visual_screen.dart';
 
 class Stage2PhysicalScreen extends StatefulWidget {
   const Stage2PhysicalScreen({super.key});
@@ -19,6 +20,7 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
   Timer? _timer;
 
   void _startTracking() {
+    _timer?.cancel();
     setState(() {
       _isTracking = true;
       _isFinished = false;
@@ -27,6 +29,10 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
     });
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_secondsRemaining > 1) {
         setState(() {
           _secondsRemaining--;
@@ -40,6 +46,14 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
           _isTracking = false;
           _isFinished = true;
         });
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const Stage3VisualScreen(),
+            ),
+          );
+        }
       }
     });
   }
@@ -79,12 +93,12 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Instruction Banner
-              NeoCard(
+              const NeoCard(
                 backgroundColor: NeoColors.primaryYellow,
                 borderRadius: 18,
                 shadowOffset: 4,
-                padding: const EdgeInsets.all(14),
-                child: const Row(
+                padding: EdgeInsets.all(14),
+                child: Row(
                   children: [
                     Icon(
                       Icons.directions_walk_rounded,
@@ -195,18 +209,19 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              "$_secondsRemaining",
+                              "${_secondsRemaining}s",
                               style: const TextStyle(
-                                fontSize: 58,
+                                fontSize: 56,
                                 fontWeight: FontWeight.w900,
                                 color: NeoColors.primaryBlue,
                                 height: 1,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             const Text(
-                              "DETIK LAGI",
+                              "dari 10 detik",
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 color: NeoColors.slateMedium,
                               ),
@@ -226,24 +241,29 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                         const Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.timer_outlined,
-                              size: 46,
-                              color: NeoColors.primaryBlue,
-                            ),
-                            SizedBox(height: 8),
                             Text(
-                              "10 DETIK",
+                              "0s",
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: 52,
                                 fontWeight: FontWeight.w900,
-                                color: NeoColors.black,
+                                color: NeoColors.primaryBlue,
+                                height: 1,
                               ),
                             ),
+                            SizedBox(height: 2),
+                            Text(
+                              "dari 10 detik",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: NeoColors.slateMedium,
+                              ),
+                            ),
+                            SizedBox(height: 4),
                             Text(
                               "Gait Cadence",
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: NeoColors.darkGray,
                               ),
@@ -280,7 +300,12 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                   borderRadius: 28,
                   height: 56,
                   onPressed: () {
-                    Navigator.pushNamed(context, '/stage3');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const Stage3VisualScreen(),
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(height: 10),

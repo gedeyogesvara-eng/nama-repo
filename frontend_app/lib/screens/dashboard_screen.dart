@@ -3,6 +3,8 @@ import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
 import '../widgets/offset_canvas_box.dart';
+import 'stage1_mental_screen.dart';
+import 'history_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -265,7 +267,12 @@ class DashboardScreen extends StatelessWidget {
                 borderRadius: 29, // Pill button
                 shadowOffset: 6,
                 onPressed: () {
-                  Navigator.pushNamed(context, '/stage1');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const Stage1MentalScreen(),
+                    ),
+                  );
                 },
               ),
 
@@ -281,88 +288,10 @@ class DashboardScreen extends StatelessWidget {
                 borderRadius: 26, // Pill button
                 shadowOffset: 5,
                 onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    backgroundColor: Colors.transparent,
-                    builder: (ctx) => Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: const BoxDecoration(
-                        color: NeoColors.background,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(28),
-                        ),
-                        border: Border(
-                          top: BorderSide(
-                              color: NeoColors.borderBlack, width: 3),
-                          left: BorderSide(
-                              color: NeoColors.borderBlack, width: 3),
-                          right: BorderSide(
-                              color: NeoColors.borderBlack, width: 3),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: NeoColors.borderBlack,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            "Riwayat Skrining Terakhir",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          NeoCard(
-                            backgroundColor: NeoColors.white,
-                            borderRadius: 16,
-                            child: const Row(
-                              children: [
-                                Icon(Icons.check_circle,
-                                    color: NeoColors.green, size: 28),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "3 Hari Lalu - Skor 18 (Bugar)",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text(
-                                        "Data lengkap 3 modalitas tersimpan.",
-                                        style: TextStyle(
-                                          color: NeoColors.darkGray,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          NeoButton(
-                            text: "Tutup",
-                            backgroundColor: NeoColors.black,
-                            height: 46,
-                            borderRadius: 23,
-                            onPressed: () => Navigator.pop(ctx),
-                          ),
-                        ],
-                      ),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
                     ),
                   );
                 },

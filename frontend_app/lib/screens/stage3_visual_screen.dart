@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
+import 'loading_scan_screen.dart';
 
 class Stage3VisualScreen extends StatefulWidget {
   const Stage3VisualScreen({super.key});
@@ -14,16 +17,32 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
   bool _isCaptured = false;
   bool _isProcessing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    if (!kIsWeb) {
+      await Permission.camera.request();
+    }
+  }
+
   void _simulateAutoCapture() {
     setState(() {
       _isCaptured = true;
       _isProcessing = true;
     });
 
-    // Simulasi jeda 1 detik lalu pindah ke LoadingScreen
-    Timer(const Duration(seconds: 1), () {
+    Timer(const Duration(milliseconds: 900), () {
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/loading');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LoadingScanScreen(),
+          ),
+        );
       }
     });
   }
@@ -65,8 +84,11 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.remove_red_eye_outlined,
-                        color: NeoColors.black, size: 20),
+                    Icon(
+                      Icons.remove_red_eye_outlined,
+                      color: NeoColors.black,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -84,12 +106,11 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
               const SizedBox(height: 16),
 
-              // SIMULATED CAMERA VIEWPORT
+              // SIMULATED CAMERA VIEWPORT (KOTAK HITAM DENGAN LIVE EYE-TRACKING)
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color:
-                        const Color(0xFF0F172A), // Dark slate camera background
+                    color: const Color(0xFF0F172A), // Dark slate camera background
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(
                       color: NeoColors.borderBlack,
@@ -134,14 +155,13 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                         ],
                       ),
 
-                      // Camera Live Header
+                      // Live Eye-Tracking Header Badge
                       Positioned(
                         top: 14,
                         left: 16,
                         right: 16,
                         child: Row(
-                          mainAxisAlignment: ChangeHorizontalAxisAlignment(
-                              MainAxisAlignment.spaceBetween),
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -149,19 +169,23 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: NeoColors.redDark,
+                                color: _isCaptured
+                                    ? NeoColors.greenDark
+                                    : NeoColors.redDark,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Row(
+                              child: Row(
                                 children: [
-                                  CircleAvatar(
+                                  const CircleAvatar(
                                     radius: 4,
                                     backgroundColor: Colors.white,
                                   ),
-                                  SizedBox(width: 6),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    "LIVE FRONT CAM",
-                                    style: TextStyle(
+                                    _isCaptured
+                                        ? "BIOMARKER TERKUNCI"
+                                        : "Live Eye-Tracking",
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w900,
@@ -193,53 +217,79 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                         ),
                       ),
 
-                      // Oval Face Guide Frame (Turns from Red to Green on capture)
-                      Container(
-                        width: 200,
-                        height: 270,
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.all(
-                            Radius.elliptical(200, 270),
-                          ),
-                          border: Border.all(
-                            color: _isCaptured
-                                ? NeoColors.green
-                                : NeoColors.redDark,
-                            width: 3.5,
-                            style: BorderStyle.solid,
-                          ),
-                          color: _isCaptured
-                              ? NeoColors.green.withValues(alpha: 0.12)
-                              : Colors.transparent,
+                      // Dashed Oval Face Guide Frame (Putus-putus Merah -> Hijau saat tertangkap)
+                      CustomPaint(
+                        painter: DashedOvalPainter(
+                          color: _isCaptured ? NeoColors.green : NeoColors.redDark,
+                          isSuccess: _isCaptured,
                         ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _isCaptured
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.face_retouching_natural_rounded,
-                                size: 52,
-                                color: _isCaptured
-                                    ? NeoColors.green
-                                    : Colors.white.withValues(alpha: 0.4),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _isCaptured
-                                    ? "Wajah Terkunci!\nMengambil Frame..."
-                                    : "Posisikan Wajah",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: _isCaptured
-                                      ? NeoColors.greenLight
-                                      : Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
+                        child: SizedBox(
+                          width: 200,
+                          height: 270,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Crosshair Pusat
+                                SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Container(
+                                        width: 2,
+                                        height: 28,
+                                        color: _isCaptured
+                                            ? NeoColors.green
+                                            : NeoColors.redDark.withValues(alpha: 0.8),
+                                      ),
+                                      Container(
+                                        width: 28,
+                                        height: 2,
+                                        color: _isCaptured
+                                            ? NeoColors.green
+                                            : NeoColors.redDark.withValues(alpha: 0.8),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                Icon(
+                                  _isCaptured
+                                      ? Icons.check_circle_outline_rounded
+                                      : Icons.face_retouching_natural_rounded,
+                                  size: 46,
+                                  color: _isCaptured
+                                      ? NeoColors.green
+                                      : Colors.white.withValues(alpha: 0.4),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    _isCaptured
+                                        ? "Wajah Terkunci!\nMengambil Frame..."
+                                        : "Posisikan Wajah",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _isCaptured
+                                          ? NeoColors.greenLight
+                                          : Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -295,7 +345,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
               NeoButton(
                 text: _isCaptured
                     ? "✓ Memproses Multimodal Data..."
-                    : "📸 Simulate Auto-Capture Wajah",
+                    : "Simulate Auto-Capture",
                 icon: _isCaptured ? Icons.check : Icons.camera_rounded,
                 backgroundColor:
                     _isCaptured ? NeoColors.greenDark : NeoColors.primaryBlue,
@@ -312,8 +362,52 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
       ),
     );
   }
+}
 
-  MainAxisAlignment ChangeHorizontalAxisAlignment(
-          MainAxisAlignment alignment) =>
-      alignment;
+/// Custom Painter untuk garis oval putus-putus (Dashed Oval)
+class DashedOvalPainter extends CustomPainter {
+  final Color color;
+  final bool isSuccess;
+
+  DashedOvalPainter({required this.color, required this.isSuccess});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..style = PaintingStyle.stroke;
+
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final path = Path()..addOval(rect);
+
+    if (isSuccess) {
+      final fillPaint = Paint()
+        ..color = color.withValues(alpha: 0.12)
+        ..style = PaintingStyle.fill;
+      canvas.drawOval(rect, fillPaint);
+    }
+
+    // Gambar dashed path keliling oval
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      const dashLength = 10.0;
+      const dashSpace = 8.0;
+
+      while (distance < metric.length) {
+        final nextDistance = distance + dashLength;
+        final extractPath = metric.extractPath(
+          distance,
+          nextDistance > metric.length ? metric.length : nextDistance,
+        );
+        canvas.drawPath(extractPath, paint);
+        distance += dashLength + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DashedOvalPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.isSuccess != isSuccess;
+  }
 }
