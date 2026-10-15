@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'screens/splash_screen.dart';
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -11,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'services/auth_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +63,7 @@ class DepressionDetectionApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: authService.navigatorKey,
       title: 'RESTGUARD - Mental Health & Fatigue Detection',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -73,9 +76,11 @@ class DepressionDetectionApp extends StatelessWidget {
           surface: const Color(0xFFF2F1EB),
         ),
       ),
-      home: const WelcomeScreen(),
+      home: const SplashScreen(),
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),
+        '/auth': (context) => const WelcomeScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/forgot_password': (context) => const ForgotPasswordScreen(),

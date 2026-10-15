@@ -1,146 +1,256 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-/// ============================================================================
-/// PANDUAN INTEGRASI FIREBASE:
-/// Agar autentikasi Firebase ini dapat terhubung ke project backend Firebase Anda:
-/// 1. Pastikan Firebase CLI terinstall di terminal: `npm install -g firebase-tools`
-/// 2. Jalankan perintah: `flutterfire configure`
-/// 3. Pastikan `google-services.json` (untuk Android) telah terdaftar di `android/app/`.
-/// 4. Aktifkan provider Email/Password dan Google Sign-In di Firebase Console.
-/// ============================================================================
+/// Model representasi data pengguna lokal
+class LocalUser {
+  final String? displayName;
+  final String? email;
+  final String uid;
 
+  const LocalUser({
+    this.displayName,
+    this.email,
+    this.uid = 'local_user',
+  });
+}
+
+/// ============================================================================
+/// AUTH SERVICE DENGAN SIMULASI DATABASE LOKAL (SHARED PREFERENCES)
+/// Menyimpan kredensial pendaftaran, session login, dan mendukung auto-login.
+/// ============================================================================
 class Auth {
   static final Auth _instance = Auth._internal();
   factory Auth() => _instance;
   Auth._internal();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Keys untuk SharedPreferences
+  static const String _keyEmail = 'user_email';
+  static const String _keyPassword = 'user_password';
+  static const String _keyName = 'user_name';
+  static const String _keyIsLoggedIn = 'is_logged_in';
+
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  LocalUser? _currentUser;
 
   /// Mengambil data user yang sedang login saat ini (null jika belum login)
-  User? get currentUser => _auth.currentUser;
+  LocalUser? get currentUser => _currentUser;
+
+  final StreamController<LocalUser?> _authStateController =
+      StreamController<LocalUser?>.broadcast();
 
   /// Stream untuk memantau perubahan status login pengguna secara realtime
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  Stream<LocalUser?> get authStateChanges => _authStateController.stream;
 
-  /// a. Registrasi Akun Baru dengan Email & Password asli ke Firebase
-  Future<bool> registerWithEmail(String email, String password, {String? name}) async {
+  /// 1 & 2. Registrasi Akun Baru dengan SharedPreferences (Simulasi Database Lokal)
+  /// Menyimpan user_name, user_email, user_password, serta mengubah is_logged_in menjadi true.
+  Future<bool> registerWithEmail(
+    String name,
+    String email,
+    String password,
+  ) async {
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      String finalName = name.trim();
+      String finalEmail = email.trim();
+      String finalPassword = password;
 
-      // Simpan Nama Lengkap Pengguna jika diberikan
-      if (name != null && name.trim().isNotEmpty && credential.user != null) {
-        await credential.user!.updateDisplayName(name.trim());
-        await credential.user!.reload();
+      // Antisipasi jika posisi parameter tertukar saat pemanggilan
+      if (name.contains('@') && !email.contains('@')) {
+        finalEmail = name.trim();
+        finalName = password.isNotEmpty ? password.trim() : "Pengguna";
+        finalPassword = email;
       }
 
+      if (finalName.isEmpty) {
+        finalName = "Pengguna";
+      }
+
+      if (finalEmail.isEmpty || finalPassword.isEmpty) {
+        throw Exception("Email dan password tidak boleh kosong.");
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+
+      // Simpan data pendaftaran secara persisten
+      await prefs.setString(_keyName, finalName);
+      await prefs.setString(_keyEmail, finalEmail);
+      await prefs.setString(_keyPassword, finalPassword);
+
+      // Set flag is_logged_in menjadi true
+      await prefs.setBool(_keyIsLoggedIn, true);
+
+      // Set user aktif
+      _currentUser = LocalUser(
+        displayName: finalName,
+        email: finalEmail,
+        uid: finalEmail,
+      );
+      _authStateController.add(_currentUser);
+
       return true;
-    } on FirebaseAuthException catch (e) {
-      throw Exception(_handleAuthException(e));
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception("Gagal mendaftar: ${e.toString()}");
     }
   }
 
-  /// b. Login Pengguna dengan Email & Password asli ke Firebase
+  /// 3. Login Pengguna dengan Email & Password
+  /// Membaca kredensial dari SharedPreferences, memvalidasi kecocokan, dan mengatur is_logged_in.
   Future<bool> loginWithEmail(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      return true;
-    } on FirebaseAuthException catch (e) {
-      throw Exception(_handleAuthException(e));
+      final cleanEmail = email.trim();
+      final cleanPassword = password;
+
+      if (cleanEmail.isEmpty || cleanPassword.isEmpty) {
+        throw Exception("Email dan kata sandi wajib diisi.");
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedEmail = prefs.getString(_keyEmail);
+      final savedPassword = prefs.getString(_keyPassword);
+      final savedName = prefs.getString(_keyName) ?? "Pengguna";
+
+      // Cek apakah ada data pendaftaran yang tersimpan di lokal
+      if (savedEmail == null || savedPassword == null) {
+        throw Exception("Email atau Password salah");
+      }
+
+      // Verifikasi kecocokan email dan password
+      if (savedEmail.toLowerCase() == cleanEmail.toLowerCase() &&
+          savedPassword == cleanPassword) {
+        // Set flag is_logged_in menjadi true
+        await prefs.setBool(_keyIsLoggedIn, true);
+
+        _currentUser = LocalUser(
+          displayName: savedName,
+          email: savedEmail,
+          uid: savedEmail,
+        );
+        _authStateController.add(_currentUser);
+
+        return true;
+      } else {
+        // Jika tidak cocok, lemparkan error agar UI menampilkan pesan "Email atau Password salah"
+        throw Exception("Email atau Password salah");
+      }
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception("Gagal masuk: ${e.toString()}");
     }
   }
 
-  /// c. Login menggunakan Akun Google asli via GoogleSignIn & FirebaseAuth
+  /// 4. Fungsi checkLoginStatus()
+  /// Membaca flag is_logged_in dari SharedPreferences.
+  /// Jika true, otomatis memperbarui state _currentUser dan mengembalikan true agar app melompat ke Dashboard.
+  Future<bool> checkLoginStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
+
+      if (isLoggedIn) {
+        final savedName = prefs.getString(_keyName) ?? "Pengguna";
+        final savedEmail = prefs.getString(_keyEmail) ?? "";
+        _currentUser = LocalUser(
+          displayName: savedName,
+          email: savedEmail,
+          uid: savedEmail.isNotEmpty ? savedEmail : 'local_user',
+        );
+        _authStateController.add(_currentUser);
+      } else {
+        _currentUser = null;
+        _authStateController.add(null);
+      }
+
+      return isLoggedIn;
+    } catch (e) {
+      debugPrint("Error checking login status: $e");
+      return false;
+    }
+  }
+
+  /// 5. Fungsi logout()
+  /// Mengatur flag is_logged_in menjadi false dan menavigasikan user kembali ke Welcome/Login Screen.
+  Future<void> logout([BuildContext? context]) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyIsLoggedIn, false);
+
+      _currentUser = null;
+      _authStateController.add(null);
+
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+
+      // Navigasi kembali ke Welcome / Login screen
+      final navContext = context ?? navigatorKey.currentContext;
+      if (navContext != null && navContext.mounted) {
+        Navigator.of(navContext).pushNamedAndRemoveUntil(
+          '/welcome',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error saat logout: $e");
+    }
+  }
+
+  /// Alias signOut untuk kompatibilitas kode lama
+  Future<void> signOut([BuildContext? context]) => logout(context);
+
+  /// Login menggunakan Google dengan menyimpan profil ke SharedPreferences
   Future<bool> loginWithGoogle() async {
     try {
-      // 1. Tampilkan dialog pemilihan akun Google di perangkat
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        // Pengguna membatalkan proses sign-in
         throw Exception("Login Google dibatalkan oleh pengguna.");
       }
 
-      // 2. Dapatkan token otentikasi dari akun Google
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String name = googleUser.displayName ?? "Pengguna Google";
+      final String email = googleUser.email;
 
-      // 3. Buat kredensial Firebase dari token Google
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyName, name);
+      await prefs.setString(_keyEmail, email);
+      await prefs.setBool(_keyIsLoggedIn, true);
+
+      _currentUser = LocalUser(
+        displayName: name,
+        email: email,
+        uid: email,
       );
+      _authStateController.add(_currentUser);
 
-      // 4. Masuk ke Firebase dengan kredensial tersebut
-      await _auth.signInWithCredential(credential);
       return true;
-    } on FirebaseAuthException catch (e) {
-      throw Exception(_handleAuthException(e));
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception("Gagal login dengan Google: ${e.toString()}");
     }
   }
 
-  /// d. Kirim Tautan Reset Password asli ke Email pengguna
+  /// Reset Password Simulasi
   Future<bool> resetPassword(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
+      final cleanEmail = email.trim();
+      if (cleanEmail.isEmpty) {
+        throw Exception("Alamat email tidak boleh kosong.");
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedEmail = prefs.getString(_keyEmail);
+
+      if (savedEmail != null && savedEmail.toLowerCase() != cleanEmail.toLowerCase()) {
+        throw Exception("Email ini belum terdaftar di sistem lokal.");
+      }
+
       return true;
-    } on FirebaseAuthException catch (e) {
-      throw Exception(_handleAuthException(e));
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception("Gagal mengirim tautan reset: ${e.toString()}");
-    }
-  }
-
-  /// Logout dari Firebase dan Google
-  Future<void> signOut() async {
-    try {
-      await _googleSignIn.signOut();
-      await _auth.signOut();
-    } catch (e) {
-      debugPrint("Error saat logout: $e");
-    }
-  }
-
-  /// Konversi kode error teknis Firebase ke pesan Bahasa Indonesia yang ramah pengguna
-  String _handleAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return "Akun dengan email ini belum terdaftar.";
-      case 'wrong-password':
-        return "Kata sandi salah. Silakan periksa kembali.";
-      case 'invalid-credential':
-        return "Email atau kata sandi tidak sesuai.";
-      case 'email-already-in-use':
-        return "Email ini sudah terdaftar. Silakan login ke akun Anda.";
-      case 'weak-password':
-        return "Kata sandi terlalu lemah. Gunakan minimal 6 karakter.";
-      case 'invalid-email':
-        return "Format alamat email tidak valid.";
-      case 'user-disabled':
-        return "Akun ini telah dinonaktifkan oleh administrator.";
-      case 'too-many-requests':
-        return "Terlalu banyak percobaan gagal. Silakan tunggu beberapa saat.";
-      case 'network-request-failed':
-        return "Koneksi internet bermasalah. Periksa jaringan Anda.";
-      case 'operation-not-allowed':
-        return "Metode autentikasi ini belum diaktifkan di Firebase Console.";
-      default:
-        return e.message ?? "Terjadi kesalahan autentikasi (${e.code}).";
     }
   }
 }

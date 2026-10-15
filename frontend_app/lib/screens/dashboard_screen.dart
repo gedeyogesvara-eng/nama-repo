@@ -137,6 +137,38 @@ class DashboardScreen extends StatelessWidget {
                       },
                     ),
                   ),
+                  const SizedBox(width: 8),
+
+                  // Tombol Logout
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: NeoColors.borderBlack,
+                        width: 2.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: NeoColors.borderBlack,
+                          offset: Offset(3, 3),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      tooltip: "Keluar dari Akun",
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 20,
+                      ),
+                      onPressed: () => _showLogoutDialog(context),
+                    ),
+                  ),
                 ],
               ),
 
@@ -374,6 +406,64 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: NeoColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: NeoColors.borderBlack, width: 2.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Color(0xFFDC2626)),
+            SizedBox(width: 10),
+            Text(
+              "Konfirmasi Keluar",
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+          ],
+        ),
+        content: const Text(
+          "Apakah Anda yakin ingin keluar dari akun RESTGUARD?",
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text(
+              "Batal",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: NeoColors.slateDark,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: NeoColors.borderBlack, width: 2),
+              ),
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await authService.logout(context);
+            },
+            child: const Text(
+              "Keluar",
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
       ),
     );
   }

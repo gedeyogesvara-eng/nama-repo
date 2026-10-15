@@ -12,8 +12,18 @@ import random
 
 app = Flask(__name__)
 
-@app.route('/predict', methods=['POST'])
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = '*'
+    return response
+
+@app.route('/predict', methods=['POST', 'OPTIONS'])
+@app.route('/api/detect', methods=['POST', 'OPTIONS'])
 def predict():
+    if request.method == 'OPTIONS':
+        return '', 204
     # Periksa form file dan form field
     audio = request.files.get('audio')
     foto = request.files.get('foto')

@@ -6,12 +6,39 @@ import 'package:http/http.dart' as http;
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend AI lokal.
 class AIService {
-  /// Base URL dinamis berdasarkan platform tempat aplikasi berjalan:
-  /// - Jika di Web (Chrome / Browser): menggunakan 127.0.0.1:5000
-  /// - Jika di Android / Emulator: menggunakan 10.0.2.2:5000
-  static String get defaultEndpoint => kIsWeb
-      ? 'http://127.0.0.1:5000/api/detect'
-      : 'http://10.0.2.2:5000/api/detect';
+  // ===========================================================================
+  // ⚙️ KONFIGURASI URL BACKEND AI (UBAH DI SINI DENGAN MUDAH)
+  // ===========================================================================
+  
+  /// 1. [OPSI NGROK] Cukup tempel URL Ngrok tim Anda di sini jika menggunakan Cloud Tunnel.
+  ///    Contoh: 'https://xxxx-xx-xx.ngrok-free.app/api/detect'
+  ///    Jika diisi (bukan null/kosong), sistem akan langsung menggunakan URL ini di semua device.
+  static const String? ngrokUrl = null;
+
+  /// 2. [OPSI IP LOKAL] IP Fisik Komputer di Jaringan Wi-Fi/LAN Lokal.
+  ///    Digunakan untuk HP Fisik (Android / iOS) agar bisa menghubungi backend di PC.
+  ///    (IPv4 Wi-Fi aktif Anda saat ini terdeteksi: 192.168.18.41)
+  static const String localIPv4 = '192.168.18.41';
+
+  /// Port backend Flask/FastAPI
+  static const String port = '5000';
+
+  /// Path endpoint deteksi
+  static const String apiPath = '/api/detect';
+
+  /// Penentuan Endpoint URL secara cerdas:
+  /// - Jika `ngrokUrl` diisi -> Gunakan `ngrokUrl` langsung (prioritas utama).
+  /// - Jika berjalan di Web (Chrome / Browser) -> Gunakan `http://127.0.0.1:5000/api/detect`.
+  /// - Jika berjalan di Android / iOS (HP Fisik) -> Gunakan `http://<localIPv4>:5000/api/detect`.
+  static String get defaultEndpoint {
+    if (ngrokUrl != null && ngrokUrl!.trim().isNotEmpty) {
+      return ngrokUrl!.trim();
+    }
+    if (kIsWeb) {
+      return 'http://127.0.0.1:$port$apiPath';
+    }
+    return 'http://$localIPv4:$port$apiPath';
+  }
 
   /// Minimal binary JPEG 1x1 pixel buffer untuk fallback web/data kosong
   static const List<int> _minimalJpegBytes = [
@@ -60,7 +87,7 @@ class AIService {
   }) async {
     // 1. Tentukan endpoint target secara dinamis
     final targetUrl = customEndpoint ?? defaultEndpoint;
-    debugPrint('🚀 [AIService] Mengirim data ke AI Model (${kIsWeb ? "Web/Chrome" : "Mobile/Emulator"}): $targetUrl');
+    debugPrint('🚀 [AIService] Mengirim data ke AI Model (${kIsWeb ? "Web/Chrome" : (ngrokUrl != null ? "Ngrok/Tunnel" : "Mobile/HP Fisik")}): $targetUrl');
     debugPrint('📷 Face Image: $faceImagePath');
     debugPrint('🎨 Drawing Image: $drawingImagePath');
     debugPrint('🎙️ Audio: $audioPath');
