@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend AI lokal.
 class AIService {
-<<<<<<< HEAD
   // ===========================================================================
   // ⚙️ KONFIGURASI URL BACKEND AI (UBAH DI SINI DENGAN MUDAH)
   // ===========================================================================
@@ -21,7 +20,7 @@ class AIService {
   ///    (IPv4 Wi-Fi aktif Anda saat ini terdeteksi: 192.168.18.41)
   static const String localIPv4 = '192.168.18.41';
 
-  /// Port backend Flask/FastAPI
+  /// Port backend Flask/FastAPI (Port 5000 untuk Flask AI langsung, atau 8081 jika via Go Backend)
   static const String port = '5000';
 
   /// Path endpoint deteksi
@@ -40,14 +39,6 @@ class AIService {
     }
     return 'http://$localIPv4:$port$apiPath';
   }
-=======
-  /// Base URL dinamis berdasarkan platform tempat aplikasi berjalan:
-  /// - Jika di Web (Chrome / Browser): menggunakan 127.0.0.1:8081
-  /// - Jika di Android / Emulator: menggunakan 10.0.2.2:8081
-static String get defaultEndpoint => kIsWeb
-    ? 'http://127.0.0.1:8081/api/detect'
-    : 'http://10.0.2.2:8081/api/detect';
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
 
   /// Minimal binary JPEG 1x1 pixel buffer untuk fallback web/data kosong
   static const List<int> _minimalJpegBytes = [

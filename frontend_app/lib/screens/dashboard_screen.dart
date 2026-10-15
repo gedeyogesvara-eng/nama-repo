@@ -137,16 +137,9 @@ class DashboardScreen extends StatelessWidget {
                       },
                     ),
                   ),
-<<<<<<< HEAD
-                  const SizedBox(width: 8),
-
-                  // Tombol Logout
-=======
-
                   const SizedBox(width: 8),
 
                   // Tombol Logout / Keluar Akun
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
                   Container(
                     width: 42,
                     height: 42,
@@ -166,32 +159,14 @@ class DashboardScreen extends StatelessWidget {
                       ],
                     ),
                     child: IconButton(
-<<<<<<< HEAD
                       tooltip: "Keluar dari Akun",
                       padding: EdgeInsets.zero,
-=======
-                      padding: EdgeInsets.zero,
-                      tooltip: "Keluar Akun",
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
                       icon: const Icon(
                         Icons.logout_rounded,
                         color: Color(0xFFDC2626),
                         size: 20,
                       ),
-<<<<<<< HEAD
                       onPressed: () => _showLogoutDialog(context),
-=======
-                      onPressed: () async {
-                        await authService.signOut();
-                        if (context.mounted) {
-                          Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            '/welcome',
-                            (route) => false,
-                          );
-                        }
-                      },
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
                     ),
                   ),
                 ],

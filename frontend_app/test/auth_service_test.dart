@@ -1,14 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-<<<<<<< HEAD
 import 'package:shared_preferences/shared_preferences.dart';
-=======
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
 import 'package:frontend_app/services/auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-<<<<<<< HEAD
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
@@ -102,13 +98,15 @@ void main() {
 
       final status = await authService.checkLoginStatus();
       expect(status, isFalse);
-=======
-  group('AuthService Tests', () {
+    });
+  });
+
+  group('AuthService Demo & Integration Tests', () {
     test('Registrasi berhasil menyimpan profil pengguna maul', () async {
       final success = await authService.registerWithEmail(
+        'maul',
         'maul@gmail.com',
         'password123',
-        name: 'maul',
       );
 
       expect(success, isTrue);
@@ -117,7 +115,7 @@ void main() {
       expect(authService.currentUser!.email, equals('maul@gmail.com'));
     });
 
-    test('Login dengan email maul@gmail.com berhasil', () async {
+    test('Login dengan akun bawaan maul@gmail.com berhasil', () async {
       await authService.signOut();
       expect(authService.currentUser, isNull);
 
@@ -141,7 +139,6 @@ void main() {
       expect(success, isTrue);
       expect(authService.currentUser, isNotNull);
       expect(authService.currentUser!.displayName, contains('Maulana'));
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
     });
   });
 }

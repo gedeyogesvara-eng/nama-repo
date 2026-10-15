@@ -3,12 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-<<<<<<< HEAD
-import 'screens/splash_screen.dart';
-=======
 import 'package:firebase_core/firebase_core.dart';
-
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
+import 'screens/splash_screen.dart';
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -18,12 +14,9 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
-<<<<<<< HEAD
-import 'services/auth_service.dart';
-=======
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
->>>>>>> da0e86a6b9b4d28cbbbb7d93e01b295eae945c05
+import 'services/auth_service.dart';
 
 // JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
 // HAPUS TANDA // DI BAWAH INI:
