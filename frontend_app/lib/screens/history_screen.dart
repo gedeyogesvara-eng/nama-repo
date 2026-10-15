@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/history_service.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -20,105 +21,55 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   String _selectedFilter = 'all'; // 'all', 'healthy', 'moderate', 'extreme'
 
-  // Data dummy riwayat skrining statis (hardcoded)
-  final List<Map<String, dynamic>> _dummyHistory = const [
-    {
-      'id': 'SCR-2026-1012',
-      'date': '12 Okt 2026',
-      'time': '14:30 WIB',
-      'category': 'healthy',
-      'title': 'Kondisi Prima (Sehat)',
-      'score': 92,
-      'badgeText': 'Prima • 92/100',
-      'accentColor': NeoColors.greenDark,
-      'bgTint': NeoColors.greenLight,
-      'textColor': NeoColors.greenDark,
-      'icon': Icons.sentiment_very_satisfied_rounded,
-      'summary':
-          'Respon saraf otonom prima. Irama gait stabil simetris dan mikrosleep visual nihil.',
-      'details': {
-        'suara': {'score': '94%', 'desc': 'Prosodi vokal dinamis & ekspresif'},
-        'gait': {'score': '91%', 'desc': 'Simetri irama langkah optimal'},
-        'visual': {'score': '18%', 'desc': 'Tegangan optik kornea sangat rendah'},
-        'sketsa': {'score': '22%', 'desc': 'Pola goresan spontan & rileks'},
-      },
-      'tips':
-          'Pertahankan ritme kerja, hidrasi teratur, dan pola istirahat sirkadian saat ini.',
-    },
-    {
-      'id': 'SCR-2026-1008',
-      'date': '08 Okt 2026',
-      'time': '19:15 WIB',
-      'category': 'moderate',
-      'title': 'Kelelahan Kerja (Burnout Sedang)',
-      'score': 64,
-      'badgeText': 'Burnout • 64/100',
-      'accentColor': NeoColors.amber,
-      'bgTint': Color(0xFFFEF3C7),
-      'textColor': Color(0xFF92400E),
-      'icon': Icons.warning_amber_rounded,
-      'summary':
-          'Deselerasi frekuensi langkah dan tegangan optik tinggi pasca jam kerja panjang.',
-      'details': {
-        'suara': {'score': '62%', 'desc': 'Pitch vokal cenderung monoton'},
-        'gait': {'score': '58%', 'desc': 'Langkah melambat & variatif'},
-        'visual': {'score': '74%', 'desc': 'Frekuensi kedip mata turun signifikan'},
-        'sketsa': {'score': '65%', 'desc': 'Kerapatan goresan garis padat'},
-      },
-      'tips':
-          'Jalankan Protokol Istirahat: detoks layar 15 menit & rehidrasi 500ml air mineral.',
-    },
-    {
-      'id': 'SCR-2026-0929',
-      'date': '29 Sep 2026',
-      'time': '09:45 WIB',
-      'category': 'healthy',
-      'title': 'Kondisi Prima (Sehat)',
-      'score': 88,
-      'badgeText': 'Prima • 88/100',
-      'accentColor': NeoColors.greenDark,
-      'bgTint': NeoColors.greenLight,
-      'textColor': NeoColors.greenDark,
-      'icon': Icons.sentiment_satisfied_alt_rounded,
-      'summary':
-          'Kondisi mental dan motorik bugar setelah jeda istirahat akhir pekan teratur.',
-      'details': {
-        'suara': {'score': '89%', 'desc': 'Variasi frekuensi suara normal'},
-        'gait': {'score': '87%', 'desc': 'Kecepatan jalan konstan & mantap'},
-        'visual': {'score': '24%', 'desc': 'Fokus refraksi mata stabil'},
-        'sketsa': {'score': '30%', 'desc': 'Garis luwes tanpa penekanan tegang'},
-      },
-      'tips':
-          'Fokus kerja terarah. Luangkan peregangan ringan setiap 90 menit bekerja.',
-    },
-    {
-      'id': 'SCR-2026-0915',
-      'date': '15 Sep 2026',
-      'time': '21:10 WIB',
-      'category': 'extreme',
-      'title': 'Stres Akut & Beban Kognitif Berat',
-      'score': 41,
-      'badgeText': 'Kritis • 41/100',
-      'accentColor': NeoColors.redDark,
-      'bgTint': NeoColors.redLight,
-      'textColor': NeoColors.darkRedZombie,
-      'icon': Icons.error_outline_rounded,
-      'summary':
-          'Terdeteksi deselerasi motorik berat, tremor mikro, serta mikrosleep berulang.',
-      'details': {
-        'suara': {'score': '38%', 'desc': 'Intonasi lemah & tempo sangat lambat'},
-        'gait': {'score': '44%', 'desc': 'Ketidakstabilan akselerasi langkah'},
-        'visual': {'score': '89%', 'desc': 'Kelelahan saraf penglihatan akut'},
-        'sketsa': {'score': '85%', 'desc': 'Pola garis kaku & bertekanan tajam'},
-      },
-      'tips':
-          'Hentikan aktivitas segera, matikan notifikasi, dan prioritaskan istirahat tidur.',
-    },
-  ];
+  // 1 & 2. State historyList awal dibuat kosong [] (tidak ada data dummy hardcoded)
+  List<Map<String, dynamic>> _historyList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+    HistoryService.historyNotifier.addListener(_onHistoryUpdated);
+  }
+
+  @override
+  void dispose() {
+    HistoryService.historyNotifier.removeListener(_onHistoryUpdated);
+    super.dispose();
+  }
+
+  void _onHistoryUpdated() {
+    if (mounted) {
+      setState(() {
+        _historyList = HistoryService.historyNotifier.value;
+      });
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final list = await HistoryService.getHistoryList();
+    if (mounted) {
+      setState(() {
+        _historyList = list;
+      });
+    }
+  }
+
+  Color _resolveColor(dynamic val, Color fallback) {
+    if (val is Color) return val;
+    if (val is int) return Color(val);
+    return fallback;
+  }
+
+  IconData _resolveIcon(dynamic iconVal, dynamic category) {
+    if (iconVal is IconData) return iconVal;
+    if (category == 'extreme') return Icons.error_outline_rounded;
+    if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
+    return Icons.warning_amber_rounded;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _dummyHistory.where((item) {
+    final filtered = _historyList.where((item) {
       if (_selectedFilter == 'all') return true;
       return item['category'] == _selectedFilter;
     }).toList();
@@ -216,7 +167,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   Text(
-                    'Rekapitulasi Multimodal AI (Statis)',
+                    'Rekapitulasi Multimodal AI',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -241,7 +192,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ],
             ),
             child: Text(
-              '${_dummyHistory.length} Sesi',
+              '${_historyList.length} Sesi',
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
@@ -256,6 +207,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- STAT OVERVIEW BANNER ---
   Widget _buildStatBanner() {
+    final int totalSessions = _historyList.length;
+    int avgScore = 0;
+    String latestCondition = "-";
+
+    if (_historyList.isNotEmpty) {
+      final totalScore = _historyList.fold<int>(
+        0,
+        (sum, item) => sum + ((item['score'] as int?) ?? 70),
+      );
+      avgScore = (totalScore / _historyList.length).round();
+      final latestTitle = (_historyList.first['title'] ?? 'Tercatat').toString();
+      latestCondition = latestTitle.length > 14
+          ? "${latestTitle.substring(0, 12)}..."
+          : latestTitle;
+    }
+
     return NeoCard(
       backgroundColor: NeoColors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -263,11 +230,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatColumn('Total Sesi', '${_dummyHistory.length}', Icons.history_edu_rounded),
+          _buildStatColumn('Total Sesi', '$totalSessions', Icons.history_edu_rounded),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Rata-rata Skor', '71 / 100', Icons.analytics_outlined),
+          _buildStatColumn('Rata-rata Skor', totalSessions > 0 ? '$avgScore / 100' : '-', Icons.analytics_outlined),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Kondisi Terkini', 'Prima ✓', Icons.verified_user_outlined),
+          _buildStatColumn('Kondisi Terkini', latestCondition, Icons.verified_user_outlined),
         ],
       ),
     );
@@ -306,11 +273,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- FILTER CHIPS ---
   Widget _buildFilterChips() {
+    final int healthyCount =
+        _historyList.where((i) => i['category'] == 'healthy').length;
+    final int moderateCount =
+        _historyList.where((i) => i['category'] == 'moderate').length;
+    final int extremeCount =
+        _historyList.where((i) => i['category'] == 'extreme').length;
+
     final filters = [
-      {'key': 'all', 'label': 'Semua (${_dummyHistory.length})'},
-      {'key': 'healthy', 'label': 'Prima (2)'},
-      {'key': 'moderate', 'label': 'Burnout (1)'},
-      {'key': 'extreme', 'label': 'Kritis (1)'},
+      {'key': 'all', 'label': 'Semua (${_historyList.length})'},
+      {'key': 'healthy', 'label': 'Prima ($healthyCount)'},
+      {'key': 'moderate', 'label': 'Burnout ($moderateCount)'},
+      {'key': 'extreme', 'label': 'Kritis ($extremeCount)'},
     ];
 
     return SingleChildScrollView(
@@ -359,9 +333,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- HISTORY CARD ITEM ---
   Widget _buildHistoryCard(BuildContext context, Map<String, dynamic> item) {
-    final Color accentColor = item['accentColor'];
-    final Color bgTint = item['bgTint'];
-    final Color textColor = item['textColor'];
+    final Color accentColor = _resolveColor(item['accentColor'], NeoColors.primaryBlue);
+    final Color bgTint = _resolveColor(item['bgTint'], NeoColors.lightGray);
+    final Color textColor = _resolveColor(item['textColor'], NeoColors.black);
+    final IconData icon = _resolveIcon(item['icon'], item['category']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -406,7 +381,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   border: Border.all(color: NeoColors.borderBlack.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  item['id'],
+                  item['id'] ?? 'SCR-ID',
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -430,7 +405,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: accentColor, width: 2),
                 ),
-                child: Icon(item['icon'], color: accentColor, size: 24),
+                child: Icon(icon, color: accentColor, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -547,23 +522,54 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildEmptyState() {
     return Container(
-      padding: const EdgeInsets.all(28),
-      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+      margin: const EdgeInsets.only(top: 16),
       decoration: BoxDecoration(
         color: NeoColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NeoColors.borderBlack, width: 2),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: NeoColors.borderBlack, width: 2.5),
+        boxShadow: const [
+          BoxShadow(
+            color: NeoColors.borderBlack,
+            offset: Offset(4, 4),
+          ),
+        ],
       ),
-      child: const Column(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.search_off_rounded, size: 40, color: NeoColors.darkGray),
-          SizedBox(height: 8),
-          Text(
-            'Tidak ada riwayat pada kategori ini.',
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+              border: Border.all(color: NeoColors.borderBlack, width: 2),
+            ),
+            child: const Icon(
+              Icons.assignment_late_outlined,
+              size: 40,
+              color: NeoColors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!",
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w900,
+              color: NeoColors.black,
+              fontSize: 14,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Hasil tes skrining multimodal AI Anda akan tercatat secara otomatis di sini.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
               color: NeoColors.darkGray,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
         ],
@@ -618,7 +624,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item['id'],
+                            item['id'] ?? 'SCR-ID',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -626,11 +632,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                           Text(
-                            item['title'],
+                            item['title'] ?? 'Diagnosis AI',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
-                              color: item['textColor'],
+                              color: _resolveColor(item['textColor'], NeoColors.black),
                             ),
                           ),
                         ],
@@ -638,16 +644,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: item['bgTint'],
+                          color: _resolveColor(item['bgTint'], NeoColors.lightGray),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: item['accentColor'], width: 1.5),
+                          border: Border.all(color: _resolveColor(item['accentColor'], NeoColors.primaryBlue), width: 1.5),
                         ),
                         child: Text(
                           'Skor ${item['score']}/100',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
-                            color: item['textColor'],
+                            color: _resolveColor(item['textColor'], NeoColors.black),
                           ),
                         ),
                       ),

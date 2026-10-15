@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
@@ -30,6 +31,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
   bool _isCaptured = false;
   bool _isProcessing = false;
+  String? _faceImagePath;
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -100,7 +103,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     return "face_dummy.jpg";
   }
 
-  /// Mengambil foto saat tombol ditekan
+  /// Mengambil foto sklera / mata langsung menggunakan kamera
   Future<void> _simulateAutoCapture() async {
     if (_isProcessing) return;
 
@@ -129,6 +132,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
       capturedPath = await _generateFallbackFaceImage();
     }
 
+    _faceImagePath = capturedPath;
+
     setState(() {
       _isCaptured = true;
     });
@@ -143,7 +148,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => LoadingScanScreen(
-            faceImagePath: capturedPath ?? '',
+            faceImagePath: _faceImagePath ?? '',
             drawingImagePath: widget.drawingImagePath ?? '',
             audioPath: widget.audioPath ?? '',
             gaitData: widget.gaitData ?? 'gait_recorded',
@@ -157,6 +162,93 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => const LoadingScanScreen(),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  /// Mengambil foto sklera / mata dari Galeri HP
+  Future<void> pickImageFromGallery() async {
+    if (_isProcessing) return;
+
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+
+      if (pickedFile == null) {
+        // User membatalkan pemilihan foto
+        return;
+      }
+
+      setState(() {
+        _faceImagePath = pickedFile.path;
+        _isCaptured = true;
+        _isProcessing = true;
+      });
+
+      debugPrint("🖼️ [Stage3] Foto mata berhasil dipilih dari galeri: ${pickedFile.path}");
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Foto dari galeri berhasil dipilih! Melanjutkan...",
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: NeoColors.greenDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: NeoColors.borderBlack, width: 2),
+            ),
+          ),
+        );
+      }
+
+      await Future.delayed(const Duration(milliseconds: 700));
+
+      if (!mounted) return;
+
+      // Lanjut ke LoadingScanScreen dengan gambar yang sama dari galeri
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LoadingScanScreen(
+            faceImagePath: _faceImagePath!,
+            drawingImagePath: widget.drawingImagePath ?? '',
+            audioPath: widget.audioPath ?? '',
+            gaitData: widget.gaitData ?? 'gait_recorded',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("⚠️ Gagal memilih foto dari galeri: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Gagal memilih foto: $e",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -315,6 +407,18 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                             }
                           },
                         ),
+
+                        // 1b. Tampilkan preview foto jika dipilih dari galeri / kamera
+                        if (_faceImagePath != null && !kIsWeb && File(_faceImagePath!).existsSync())
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Image.file(
+                                File(_faceImagePath!),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
 
                         // 2. Soft Dark Vignette Overlay
                         Container(
@@ -545,18 +649,31 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
               const SizedBox(height: 16),
 
-              // Button: "Simulate Auto-Capture"
+              // Tombol Utama: Buka Kamera / Ambil Foto
               NeoButton(
                 text: _isCaptured
                     ? "✓ Memproses Multimodal Data..."
-                    : "Simulate Auto-Capture (Ambil Foto)",
+                    : "Buka Kamera (Ambil Foto)",
                 icon: _isCaptured ? Icons.check : Icons.camera_rounded,
                 backgroundColor:
                     _isCaptured ? NeoColors.greenDark : NeoColors.primaryBlue,
                 textColor: NeoColors.white,
                 borderRadius: 28,
-                height: 56,
-                onPressed: _isCaptured ? null : _simulateAutoCapture,
+                height: 54,
+                onPressed: _isCaptured || _isProcessing ? null : _simulateAutoCapture,
+              ),
+
+              const SizedBox(height: 10),
+
+              // Tombol Sekunder: Pilih dari Galeri
+              NeoButton(
+                text: "📁 Pilih dari Galeri",
+                icon: Icons.photo_library_rounded,
+                backgroundColor: NeoColors.white,
+                textColor: NeoColors.black,
+                borderRadius: 28,
+                height: 50,
+                onPressed: _isCaptured || _isProcessing ? null : pickImageFromGallery,
               ),
 
               const SizedBox(height: 8),

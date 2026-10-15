@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'history_service.dart';
+
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend AI lokal.
 class AIService {
@@ -201,7 +203,10 @@ class AIService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
-          return normalizeResponse(decoded);
+          final normalized = normalizeResponse(decoded);
+          // 3. Otomatis tambahkan (insert) ke historyList dan simpan ke SharedPreferences
+          await HistoryService.addDiagnosisFromApi(normalized);
+          return normalized;
         } else {
           throw Exception(
             'Format respons backend bukan berupa objek JSON valid.',
@@ -211,11 +216,15 @@ class AIService {
         debugPrint(
           '⚠️ AI Server Error [${response.statusCode}]: ${response.body}. Menggunakan fallback.',
         );
-        return getFallbackDetectionData();
+        final fallback = getFallbackDetectionData();
+        await HistoryService.addDiagnosisFromApi(fallback);
+        return fallback;
       }
     } catch (e) {
       debugPrint('⚠️ [AIService] Error saat menghubungi AI Backend: $e. Mengaktifkan diagnosis fallback cerdas.');
-      return getFallbackDetectionData();
+      final fallback = getFallbackDetectionData();
+      await HistoryService.addDiagnosisFromApi(fallback);
+      return fallback;
     }
   }
 
