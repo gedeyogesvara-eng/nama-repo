@@ -1,9 +1,8 @@
 // ignore_for_file: unused_element
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'services/auth_service.dart';
 
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
@@ -17,40 +16,15 @@ import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
 
-// JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
-// HAPUS TANDA // DI BAWAH INI:
-// import 'firebase_options.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi Firebase jika konfigurasi aktif, atau fallback otomatis ke mode mandiri
+  // Autentikasi memakai Backend Go + MySQL (tanpa Firebase).
+  // Pulihkan sesi login terakhir (user_id & full_name) jika ada.
   try {
-    const String firebaseApiKey = "GANTI_DENGAN_API_KEY_FIREBASE_ANDA";
-    final bool hasValidConfig = !firebaseApiKey.contains("GANTI_DENGAN") && firebaseApiKey.isNotEmpty;
-
-    if (hasValidConfig && Firebase.apps.isEmpty) {
-      if (kIsWeb) {
-        // Konfigurasi khusus saat dijalankan di Browser (Chrome/Edge)
-        await Firebase.initializeApp(
-          // JIKA SUDAH ADA firebase_options.dart, GANTI BLOK const FirebaseOptions(...)
-          // DI BAWAH INI MENJADI: options: DefaultFirebaseOptions.currentPlatform,
-          options: const FirebaseOptions(
-            apiKey: firebaseApiKey,
-            authDomain: "GANTI_DENGAN_PROJECT_ID.firebaseapp.com",
-            projectId: "GANTI_DENGAN_PROJECT_ID_ANDA",
-            storageBucket: "GANTI_DENGAN_PROJECT_ID.appspot.com",
-            messagingSenderId: "GANTI_DENGAN_SENDER_ID_ANDA",
-            appId: "GANTI_DENGAN_APP_ID_ANDA",
-          ),
-        );
-      } else {
-        // Konfigurasi saat dijalankan di Android / iOS
-        await Firebase.initializeApp();
-      }
-    }
+    await authService.restoreSession();
   } catch (e) {
-    debugPrint("Firebase init error: $e");
+    debugPrint("Gagal memulihkan sesi login: $e");
   }
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -113,7 +87,9 @@ class DepressionDetectionApp extends StatelessWidget {
           surface: const Color(0xFFF2F1EB),
         ),
       ),
-      home: const WelcomeScreen(),
+      home: authService.currentUser != null
+          ? const DashboardScreen()
+          : const WelcomeScreen(),
       routes: {
         '/welcome': (context) => const WelcomeScreen(),
         '/login': (context) => const LoginScreen(),

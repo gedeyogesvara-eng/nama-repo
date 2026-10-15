@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
@@ -6,13 +7,16 @@ import '../widgets/neo_card.dart';
 import 'stage3_visual_screen.dart';
 
 class Stage2PhysicalScreen extends StatefulWidget {
-  final String? drawingImagePath;
-  final String? audioPath;
+  /// Gambar coretan (PNG) dari Tahap 1
+  final Uint8List? drawingBytes;
+
+  /// Rekaman suara (WAV) dari Tahap 1
+  final Uint8List? audioBytes;
 
   const Stage2PhysicalScreen({
     super.key,
-    this.drawingImagePath,
-    this.audioPath,
+    this.drawingBytes,
+    this.audioBytes,
   });
 
   @override
@@ -80,8 +84,8 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => Stage3VisualScreen(
-          drawingImagePath: widget.drawingImagePath,
-          audioPath: widget.audioPath,
+          drawingBytes: widget.drawingBytes,
+          audioBytes: widget.audioBytes,
           gaitData: _gaitData,
         ),
       ),

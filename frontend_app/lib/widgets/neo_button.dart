@@ -40,7 +40,6 @@ class _NeoButtonState extends State<NeoButton> {
   Widget build(BuildContext context) {
     final bool isEnabled = widget.onPressed != null && !widget.isLoading;
     final currentOffset = _isPressed && isEnabled ? 1.0 : widget.shadowOffset;
-    final transformOffset = _isPressed && isEnabled ? widget.shadowOffset - 1.0 : 0.0;
 
     return MouseRegion(
       cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,

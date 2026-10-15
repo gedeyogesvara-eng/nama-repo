@@ -1,22 +1,25 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import 'loading_scan_screen.dart';
 
 class Stage3VisualScreen extends StatefulWidget {
-  final String? drawingImagePath;
-  final String? audioPath;
+  /// Gambar coretan (PNG) dari Tahap 1
+  final Uint8List? drawingBytes;
+
+  /// Rekaman suara (WAV) dari Tahap 1
+  final Uint8List? audioBytes;
+
+  /// Data sensor gait dari Tahap 2
   final dynamic gaitData;
 
   const Stage3VisualScreen({
     super.key,
-    this.drawingImagePath,
-    this.audioPath,
+    this.drawingBytes,
+    this.audioBytes,
     this.gaitData,
   });
 
@@ -65,42 +68,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     super.dispose();
   }
 
-  /// Membuat gambar JPEG fallback jika diperlukan
-  Future<String> _generateFallbackFaceImage() async {
-    try {
-      if (!kIsWeb) {
-        final tempDir = await getTemporaryDirectory();
-        final fallbackPath =
-            '${tempDir.path}/face_capture_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final file = File(fallbackPath);
-
-        // Binary 1x1 JPEG valid
-        final List<int> jpegBytes = [
-          0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-          0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
-          0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
-          0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
-          0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20,
-          0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29,
-          0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
-          0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
-          0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00,
-          0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-          0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F,
-          0x00, 0xBF, 0x80, 0xFF, 0xD9
-        ];
-
-        await file.writeAsBytes(jpegBytes);
-        return fallbackPath;
-      }
-    } catch (e) {
-      debugPrint("Gagal membuat fallback image: $e");
-    }
-    return "face_dummy.jpg";
-  }
-
-  /// Mengambil foto saat tombol ditekan
+  /// Mengambil foto saat tombol ditekan. Foto dibaca sebagai bytes (Web-safe);
+  /// jika kamera tidak tersedia, bytes null -> AIService memakai JPEG placeholder.
   Future<void> _simulateAutoCapture() async {
     if (_isProcessing) return;
 
@@ -108,27 +77,24 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
       _isProcessing = true;
     });
 
-    String? capturedPath;
+    Uint8List? faceBytes;
 
     try {
       if (_initializeControllerFuture != null) {
-        await _initializeControllerFuture;
+        await _initializeControllerFuture!.timeout(const Duration(seconds: 5));
       }
       if (_controller != null &&
           _controller!.value.isInitialized &&
           !_controller!.value.isTakingPicture) {
         final XFile photo = await _controller!.takePicture();
-        capturedPath = photo.path;
-        debugPrint("📸 Foto kamera berhasil diambil: $capturedPath");
+        faceBytes = await photo.readAsBytes();
+        debugPrint("📸 Foto kamera berhasil diambil: ${faceBytes.length} bytes");
       }
     } catch (e) {
       debugPrint("⚠️ Gagal mengambil foto kamera: $e");
     }
 
-    if (capturedPath == null || capturedPath.isEmpty) {
-      capturedPath = await _generateFallbackFaceImage();
-    }
-
+    if (!mounted) return;
     setState(() {
       _isCaptured = true;
     });
@@ -143,9 +109,9 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => LoadingScanScreen(
-            faceImagePath: capturedPath ?? '',
-            drawingImagePath: widget.drawingImagePath ?? '',
-            audioPath: widget.audioPath ?? '',
+            faceBytes: faceBytes,
+            drawingBytes: widget.drawingBytes,
+            audioBytes: widget.audioBytes,
             gaitData: widget.gaitData ?? 'gait_recorded',
           ),
         ),

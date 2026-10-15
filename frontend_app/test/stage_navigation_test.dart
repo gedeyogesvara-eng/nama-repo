@@ -46,7 +46,7 @@ void main() {
 
       for (final w in find.byType(Widget).evaluate()) {
         if (w.widget.runtimeType.toString().contains('Stage')) {
-          print("FOUND STAGE WIDGET: ${w.widget.runtimeType}");
+          debugPrint("FOUND STAGE WIDGET: ${w.widget.runtimeType}");
         }
       }
 

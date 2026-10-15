@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/rendering.dart';
+import 'package:record/record.dart';
+import '../services/media_utils.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -62,11 +65,26 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
   Timer? _voiceTimer;
   Color _selectedColor = NeoColors.white;
   bool _isSavingData = false;
-  String? _capturedAudioPath;
+
+  // Perekam mikrofon dibuat lazy (hanya saat tombol mikrofon ditekan)
+  AudioRecorder? _recorder;
+  StreamSubscription<Uint8List>? _pcmSubscription;
+  final List<int> _pcmBytes = [];
+  bool _realRecordingActive = false;
+
+  /// Audio WAV hasil rekaman (null jika belum merekam)
+  Uint8List? _audioBytes;
+
+  static const int _sampleRate = 16000;
 
   @override
   void dispose() {
     _voiceTimer?.cancel();
+    _pcmSubscription?.cancel();
+    final recorder = _recorder;
+    if (recorder != null) {
+      unawaited(recorder.dispose().catchError((_) {}));
+    }
     super.dispose();
   }
 
@@ -76,72 +94,131 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
     });
   }
 
+  void _showInfo(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: isError ? NeoColors.redDark : NeoColors.slateDark,
+      ),
+    );
+  }
+
   Future<void> _toggleVoiceRecording() async {
     if (!_isRecordingVoice) {
-      if (!kIsWeb) {
-        final status = await Permission.microphone.request();
-        if (!status.isGranted) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  "Izin mikrofon diperlukan untuk merekam analisis suara.",
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                backgroundColor: NeoColors.redDark,
-              ),
-            );
-          }
-          return;
-        }
-      }
-
-      setState(() {
-        _isRecordingVoice = true;
-        _voiceSaved = false;
-        _voiceSeconds = 15;
-      });
-
-      _voiceTimer?.cancel();
-      _voiceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        if (_voiceSeconds > 1) {
-          setState(() {
-            _voiceSeconds--;
-          });
-        } else {
-          timer.cancel();
-          setState(() {
-            _isRecordingVoice = false;
-            _voiceSaved = true;
-          });
-          // Otomatis siapkan file audio
-          _prepareAudioFile();
-        }
-      });
+      await _startRecording();
     } else {
-      // Tombol ditekan kedua kali: Berhenti merekam & simpan suara
-      _voiceTimer?.cancel();
-      setState(() {
-        _isRecordingVoice = false;
-        _voiceSaved = true;
-      });
-      await _prepareAudioFile();
+      // Tombol ditekan kedua kali: berhenti merekam & simpan suara
+      await _finishRecording();
     }
   }
 
+  Future<void> _startRecording() async {
+    _pcmBytes.clear();
+    _audioBytes = null;
+    _realRecordingActive = false;
 
-  Future<String> _prepareAudioFile() async {
-    _capturedAudioPath = 'recorded_audio_saved.wav';
-    return 'recorded_audio_saved.wav';
+    // Coba mikrofon nyata (Web: izin browser, Android/iOS: izin sistem).
+    // Jika gagal, rekaman disimulasikan agar alur tidak macet.
+    try {
+      final recorder = _recorder ??= AudioRecorder();
+      if (await recorder.hasPermission()) {
+        final stream = await recorder.startStream(const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: _sampleRate,
+          numChannels: 1,
+        ));
+        _pcmSubscription = stream.listen(
+          _pcmBytes.addAll,
+          onError: (Object e) => debugPrint('Stream mikrofon error: $e'),
+        );
+        _realRecordingActive = true;
+      } else {
+        _showInfo(
+          'Izin mikrofon ditolak. Rekaman disimulasikan agar skrining tetap berjalan.',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('Mikrofon tidak tersedia: $e');
+      _showInfo('Mikrofon tidak tersedia. Rekaman disimulasikan agar skrining tetap berjalan.');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isRecordingVoice = true;
+      _voiceSaved = false;
+      _voiceSeconds = 15;
+    });
+
+    _voiceTimer?.cancel();
+    _voiceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_voiceSeconds > 1) {
+        setState(() {
+          _voiceSeconds--;
+        });
+      } else {
+        timer.cancel();
+        _finishRecording();
+      }
+    });
   }
 
-  /// Mengonversi canvas CustomPaint ke file gambar atau identifier virtual
-  Future<String> _captureCanvasToPng() async {
-    return "drawing_canvas_saved.png";
+  Future<void> _finishRecording() async {
+    _voiceTimer?.cancel();
+    if (!_isRecordingVoice) return;
+
+    if (_realRecordingActive) {
+      try {
+        await _recorder?.stop();
+      } catch (e) {
+        debugPrint('Gagal menghentikan perekam: $e');
+      }
+      await _pcmSubscription?.cancel();
+      _pcmSubscription = null;
+      _realRecordingActive = false;
+    }
+
+    // PCM16 mono 16 kHz -> WAV. Kurang dari ~0,1 detik dianggap gagal -> sintetis.
+    if (_pcmBytes.length >= _sampleRate ~/ 5) {
+      _audioBytes = MediaUtils.pcm16ToWav(Uint8List.fromList(_pcmBytes), sampleRate: _sampleRate);
+    } else {
+      _audioBytes = MediaUtils.generateSyntheticWav(sampleRate: _sampleRate);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isRecordingVoice = false;
+      _voiceSaved = true;
+    });
+  }
+
+  /// Mengekspor kanvas coretan menjadi bytes PNG (aman di Web & mobile).
+  /// Mengembalikan null bila gagal/timeout -> AIService memakai PNG placeholder.
+  Future<Uint8List?> _captureCanvasPng() async {
+    try {
+      final boundary = _canvasKey.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary || boundary.debugNeedsPaint) {
+        return null;
+      }
+      final ui.Image image = await boundary
+          .toImage(pixelRatio: 1.0)
+          .timeout(const Duration(milliseconds: 300));
+      final ByteData? data = await image
+          .toByteData(format: ui.ImageByteFormat.png)
+          .timeout(const Duration(milliseconds: 300));
+      return data?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('⚠️ Gagal mengekspor kanvas: $e');
+      return null;
+    }
   }
 
   Future<void> _handleProceedToStage2() async {
@@ -151,37 +228,22 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
       _isSavingData = true;
     });
 
-    String drawingImagePath = 'drawing_canvas_fallback.png';
-    String audioPath = 'recorded_audio_fallback.wav';
-
-    try {
-      drawingImagePath = await _captureCanvasToPng().timeout(
-        const Duration(milliseconds: 600),
-        onTimeout: () => 'drawing_canvas_fallback.png',
-      );
-
-      final captured = _capturedAudioPath ?? '';
-      if (captured.isNotEmpty) {
-        audioPath = captured;
-      } else {
-        audioPath = await _prepareAudioFile().timeout(
-          const Duration(milliseconds: 600),
-          onTimeout: () => 'recorded_audio_fallback.wav',
-        );
-      }
-    } catch (e) {
-      debugPrint("⚠️ Simpan file stage 1 fallback: $e");
+    // Jika masih merekam saat tombol ditekan, hentikan & simpan dulu
+    if (_isRecordingVoice) {
+      await _finishRecording();
     }
+
+    final Uint8List? drawingBytes = await _captureCanvasPng();
 
     if (!mounted) return;
 
-    // 3. Navigasikan ke Tahap 2 dengan membawa data Stage 1
-    Navigator.push(
+    // Navigasikan ke Tahap 2 dengan membawa data Stage 1 (bytes)
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => Stage2PhysicalScreen(
-          drawingImagePath: drawingImagePath,
-          audioPath: audioPath,
+          drawingBytes: drawingBytes,
+          audioBytes: _audioBytes,
         ),
       ),
     );

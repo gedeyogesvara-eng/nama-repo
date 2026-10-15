@@ -7,8 +7,122 @@ import '../widgets/offset_canvas_box.dart';
 import 'stage1_mental_screen.dart';
 import 'history_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  Map<String, dynamic>? _profile;
+  bool _isLoadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  /// Memuat skor pemulihan & skrining terbaru dari MySQL (via backend Go)
+  Future<void> _loadProfile() async {
+    final data = await authService.refreshProfile();
+    if (!mounted) return;
+    setState(() {
+      _profile = data;
+      _isLoadingProfile = false;
+    });
+  }
+
+  String _stageLabel(String stage) {
+    switch (stage) {
+      case 'CRITICAL_ZOMBIE':
+        return 'Zombi Kritis';
+      case 'TIRED_ZOMBIE':
+        return 'Zombi Lelah';
+      case 'RECOVERING_HUMAN':
+        return 'Manusia Pulih';
+      case 'HEALTHY_HUMAN':
+        return 'Manusia Sehat';
+      default:
+        return stage;
+    }
+  }
+
+  String get _conditionText {
+    if (_isLoadingProfile) return 'Memuat kondisi terbaru...';
+    final latest = _profile?['latest_screening'];
+    if (latest is Map && latest['kategori_burnout'] != null) {
+      return 'Terakhir: ${latest['kategori_burnout']}';
+    }
+    return _profile == null
+        ? 'Kondisi: Server belum terhubung'
+        : 'Kondisi: Belum Ada Skrining';
+  }
+
+  Widget _buildRecoveryCard() {
+    final user = authService.currentUser;
+    final int score = (user?.recoveryScore ?? 0).clamp(0, 100);
+    final int total = (_profile?['total_screenings'] as num?)?.toInt() ?? 0;
+    final int done = (_profile?['recipes_completed'] as num?)?.toInt() ?? 0;
+    final int allRecipes = (_profile?['recipes_total'] as num?)?.toInt() ?? 0;
+    final bool connected = _profile != null;
+
+    return NeoCard(
+      backgroundColor: NeoColors.white,
+      borderRadius: 20,
+      shadowOffset: 4,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Skor Pemulihan',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: NeoColors.black,
+                  ),
+                ),
+              ),
+              Text(
+                connected ? '$score/100' : '-/100',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: NeoColors.primaryBlue,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: connected ? score / 100 : 0,
+              minHeight: 12,
+              backgroundColor: const Color(0xFFE5E7EB),
+              valueColor: const AlwaysStoppedAnimation<Color>(NeoColors.primaryBlue),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            connected
+                ? '${_stageLabel(user?.zombieStage ?? '')} • $total skrining • $done/$allRecipes resep selesai'
+                : 'Hubungkan backend (port 8081) untuk memuat skor pemulihan Anda.',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: NeoColors.darkGray,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,11 +189,11 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          "Kondisi: Belum Skrining Hari Ini",
+                        Text(
+                          _conditionText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: NeoColors.darkGray,
@@ -337,7 +451,7 @@ class DashboardScreen extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (context) => const Stage1MentalScreen(),
                     ),
-                  );
+                  ).then((_) => _loadProfile());
                 },
               ),
 
@@ -358,11 +472,15 @@ class DashboardScreen extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (context) => const HistoryScreen(),
                     ),
-                  );
+                  ).then((_) => _loadProfile());
                 },
               ),
 
               const SizedBox(height: 20),
+
+              // Skor Pemulihan (data nyata dari MySQL)
+              _buildRecoveryCard(),
+              const SizedBox(height: 16),
 
               // Status Summary Info NeoCard
               NeoCard(
