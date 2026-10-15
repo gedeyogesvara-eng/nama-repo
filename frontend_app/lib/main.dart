@@ -14,6 +14,7 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,6 +97,7 @@ class DepressionDetectionApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/forgot_password': (context) => const ForgotPasswordScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/home': (context) => const HomeScreen(),
         '/stage1': (context) => const Stage1MentalScreen(),
         '/stage2': (context) => const Stage2PhysicalScreen(),
         '/stage3': (context) => const Stage3VisualScreen(),

@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_svg: ^2.0.9  # (atau versi terbaru)
   cupertino_icons: ^1.0.8
   image_picker: ^1.2.4
   permission_handler: ^13.0.2
@@ -26,3 +27,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/lukisan_siang.svg
+    - assets/lukisan_malam.svg
+    - assets/images/lukisan_siang.svg
+    - assets/images/lukisan_malam.svg
