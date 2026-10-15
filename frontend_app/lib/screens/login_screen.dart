@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         _showSnackBar(
-          message: "Login gagal. Periksa kembali email dan kata sandi Anda.",
+          message: "Email atau Password salah",
           isError: true,
         );
       }

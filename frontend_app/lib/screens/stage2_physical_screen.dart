@@ -27,8 +27,11 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
   int _secondsRemaining = 10;
   bool _isTracking = false;
   bool _isFinished = false;
+  bool _isCountingDown = false;
+  String _countdownText = "Bersiap...";
   int _stepCount = 0;
   Timer? _timer;
+  Timer? _countdownTimer;
 
   // Data sensor gait akselerometer (dummy list JSON & status gait_recorded)
   final Map<String, dynamic> _gaitData = {
@@ -44,6 +47,44 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
       {"t": 10.0, "x": 0.15, "y": 9.79, "z": 0.22},
     ],
   };
+
+  /// Memulai hitung mundur 3 detik sebelum sensor merekam (Bersiap... -> 3 -> 2 -> 1 -> Mulai!)
+  void _startCountdownSequence() {
+    _countdownTimer?.cancel();
+    _timer?.cancel();
+
+    setState(() {
+      _isCountingDown = true;
+      _isTracking = false;
+      _isFinished = false;
+      _secondsRemaining = 10;
+      _stepCount = 0;
+      _countdownText = "Bersiap...";
+    });
+
+    int step = 0;
+    const steps = ["Bersiap...", "3", "2", "1", "Mulai!"];
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      step++;
+      if (step < steps.length) {
+        setState(() {
+          _countdownText = steps[step];
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _isCountingDown = false;
+        });
+        // Sensor akselerometer/gyroscope mulai merekam tepat setelah 'Mulai!'
+        _startTracking();
+      }
+    });
+  }
 
   void _startTracking() {
     _timer?.cancel();
@@ -94,6 +135,7 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _timer?.cancel();
     super.dispose();
   }
@@ -198,13 +240,15 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                         width: 190,
                         height: 190,
                         child: CircularProgressIndicator(
-                          value: _isFinished ? 1.0 : progress,
+                          value: _isFinished ? 1.0 : (_isCountingDown ? 0.0 : progress),
                           strokeWidth: 14,
                           backgroundColor: NeoColors.lightGray,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _isFinished
                                 ? NeoColors.green
-                                : NeoColors.primaryBlue,
+                                : (_isCountingDown
+                                    ? NeoColors.amber
+                                    : NeoColors.primaryBlue),
                           ),
                         ),
                       ),
@@ -234,6 +278,53 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: NeoColors.darkGray,
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (_isCountingDown)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              transitionBuilder: (child, animation) =>
+                                  ScaleTransition(scale: animation, child: child),
+                              child: Text(
+                                _countdownText,
+                                key: ValueKey<String>(_countdownText),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: (_countdownText.length <= 2) ? 68 : 28,
+                                  fontWeight: FontWeight.w900,
+                                  color: _countdownText == "Mulai!"
+                                      ? NeoColors.greenDark
+                                      : NeoColors.amber,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: NeoColors.lightGray,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: NeoColors.borderBlack,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: const Text(
+                                "Taruh HP di saku",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: NeoColors.black,
+                                ),
                               ),
                             ),
                           ],
@@ -314,17 +405,23 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
               // Tracking Action Button
               if (!_isFinished) ...[
                 NeoButton(
-                  text: _isTracking
-                      ? "Sedang Merekam Langkah..."
-                      : "Mulai Berjalan (10 Detik)",
-                  icon: _isTracking ? Icons.sync : Icons.play_arrow_rounded,
-                  backgroundColor: _isTracking
+                  text: _isCountingDown
+                      ? "Bersiap: $_countdownText"
+                      : (_isTracking
+                          ? "Sedang Merekam Langkah..."
+                          : "Mulai Berjalan (10 Detik)"),
+                  icon: (_isCountingDown || _isTracking)
+                      ? Icons.sync
+                      : Icons.play_arrow_rounded,
+                  backgroundColor: (_isCountingDown || _isTracking)
                       ? NeoColors.amber
                       : NeoColors.primaryBlue,
                   textColor: NeoColors.white,
                   borderRadius: 28,
                   height: 54,
-                  onPressed: _isTracking ? null : _startTracking,
+                  onPressed: (_isCountingDown || _isTracking)
+                      ? null
+                      : _startCountdownSequence,
                 ),
               ] else ...[
                 // Once finished, display "Lanjut Scan Mata" as requested
@@ -344,7 +441,7 @@ class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
                   textColor: NeoColors.black,
                   borderRadius: 28,
                   height: 46,
-                  onPressed: _startTracking,
+                  onPressed: _startCountdownSequence,
                 ),
               ],
 

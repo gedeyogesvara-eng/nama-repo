@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_card.dart';
 
@@ -27,12 +28,25 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
 
-    // Otomatis pindah ke AuthScreen setelah delay 2 detik sesuai ketentuan
-    Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/auth');
-      }
-    });
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Menjalankan animasi splash selama 1.8 detik
+    await Future.delayed(const Duration(milliseconds: 1800));
+
+    // Membaca status login dari SharedPreferences melalui AuthService
+    final isLoggedIn = await authService.checkLoginStatus();
+
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      // Jika sudah login, langsung lompat ke Dashboard
+      Navigator.pushReplacementNamed(context, '/dashboard');
+    } else {
+      // Jika belum login, buka halaman Welcome
+      Navigator.pushReplacementNamed(context, '/welcome');
+    }
   }
 
   @override

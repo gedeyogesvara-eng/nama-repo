@@ -109,14 +109,36 @@ func main() {
 		log.Fatalf("Gagal membuat direktori uploads: %v", err)
 	}
 
+<<<<<<< HEAD
 	// 2. Koneksi + migrasi otomatis MySQL XAMPP (default port 3307)
 	if err := connectAndMigrate(); err != nil {
 		log.Fatalf("❌ Gagal menyiapkan database MySQL: %v", err)
+=======
+	// 2. Koneksi ke MySQL XAMPP di port 3306
+	dsn := "root:@tcp(127.0.0.1:3306)/somatic_db?parseTime=true"
+	var err error
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatalf("Gagal membuka koneksi database: %v", err)
+>>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 	}
 	defer db.Close()
 	log.Printf("✅ MySQL siap (%s) - tabel users, screening_sessions, ai_recipes termigrasi!", dbName)
 
+<<<<<<< HEAD
 	// 3. Gin Router & CORS (aman untuk Flutter Web, Emulator, dan Ngrok)
+=======
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("❌ Database MySQL belum aktif di port 3306 atau somatic_db belum dibuat: %v", err)
+	}
+	log.Println("✅ Berhasil terhubung ke MySQL (somatic_db) di port 3306!")
+
+	// 3. Setup Gin Router & CORS (Aman untuk Flutter Web, Emulator, dan Ngrok)
+>>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 	r := gin.Default()
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
 
@@ -578,10 +600,15 @@ func healthCheckHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":           "online",
 		"service":          "Somatic.AI Go Backend Bridge",
+<<<<<<< HEAD
 		"mysql_status":     "connected",
 		"database":         dbName,
 		"total_users":      users,
 		"total_screenings": screenings,
+=======
+		"mysql_status":     "connected (port 3306)",
+		"total_screenings": count,
+>>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 		"python_ai_target": pythonAIBaseURL,
 		"python_ai_online": pyOnline,
 		"python_ai_models": pyModels,

@@ -49,9 +49,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final success = await authService.registerWithEmail(
+        _nameController.text.trim().isEmpty ? "Pengguna" : _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
-        name: _nameController.text.trim(),
       );
 
       if (!mounted) return;
