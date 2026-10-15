@@ -2,6 +2,10 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
+=======
+import 'package:image_picker/image_picker.dart';
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import 'loading_scan_screen.dart';
@@ -33,6 +37,11 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
   bool _isCaptured = false;
   bool _isProcessing = false;
+<<<<<<< HEAD
+=======
+  Uint8List? _capturedFaceBytes;
+  final ImagePicker _imagePicker = ImagePicker();
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   @override
   void initState() {
@@ -68,8 +77,12 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
   /// Mengambil foto saat tombol ditekan. Foto dibaca sebagai bytes (Web-safe);
   /// jika kamera tidak tersedia, bytes null -> AIService memakai JPEG placeholder.
+=======
+  /// Mengambil foto sklera / mata langsung menggunakan kamera
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   Future<void> _simulateAutoCapture() async {
     if (_isProcessing) return;
 
@@ -97,6 +110,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     if (!mounted) return;
     setState(() {
       _isCaptured = true;
+      _capturedFaceBytes = faceBytes;
     });
 
     try {
@@ -135,6 +149,97 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     }
   }
 
+<<<<<<< HEAD
+=======
+  /// Mengambil foto sklera / mata dari Galeri HP
+  Future<void> pickImageFromGallery() async {
+    if (_isProcessing) return;
+
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+
+      if (pickedFile == null) {
+        // User membatalkan pemilihan foto
+        return;
+      }
+
+      final faceBytes = await pickedFile.readAsBytes();
+      debugPrint("🖼️ [Stage3] Foto mata berhasil dipilih dari galeri: ${faceBytes.length} bytes");
+
+      setState(() {
+        _isCaptured = true;
+        _isProcessing = true;
+        _capturedFaceBytes = faceBytes;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Foto dari galeri berhasil dipilih! Melanjutkan...",
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: NeoColors.greenDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: NeoColors.borderBlack, width: 2),
+            ),
+          ),
+        );
+      }
+
+      await Future.delayed(const Duration(milliseconds: 700));
+
+      if (!mounted) return;
+
+      // Lanjut ke LoadingScanScreen dengan gambar yang sama dari galeri
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LoadingScanScreen(
+            faceBytes: faceBytes,
+            drawingBytes: widget.drawingBytes,
+            audioBytes: widget.audioBytes,
+            gaitData: widget.gaitData ?? 'gait_recorded',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("⚠️ Gagal memilih foto dari galeri: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Gagal memilih foto: $e",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -282,6 +387,21 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           },
                         ),
 
+<<<<<<< HEAD
+=======
+                        // 1b. Tampilkan preview foto jika dipilih dari galeri / kamera
+                        if (_capturedFaceBytes != null)
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Image.memory(
+                                _capturedFaceBytes!,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
                         // 2. Soft Dark Vignette Overlay
                         Container(
                           color: Colors.black.withValues(alpha: 0.15),

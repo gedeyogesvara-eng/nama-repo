@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/backend_service.dart';
+<<<<<<< HEAD
+=======
+import '../services/history_service.dart';
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -35,6 +39,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+<<<<<<< HEAD
   }
 
   /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
@@ -59,15 +64,88 @@ class _HistoryScreenState extends State<HistoryScreen> {
       setState(() {
         _history = rows.map(_mapSession).toList();
         _isLoading = false;
+=======
+    HistoryService.historyNotifier.addListener(_onHistoryUpdated);
+  }
+
+  @override
+  void dispose() {
+    HistoryService.historyNotifier.removeListener(_onHistoryUpdated);
+    super.dispose();
+  }
+
+  void _onHistoryUpdated() {
+    if (mounted) {
+      final updated = HistoryService.historyNotifier.value;
+      if (updated.isNotEmpty || authService.currentUserId == null) {
+        setState(() {
+          _history = updated;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final userId = authService.currentUserId;
+    if (userId != null) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      try {
+        final rows = await BackendService.fetchHistory(userId);
+        if (rows.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _history = rows.map(_mapSession).toList();
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        debugPrint('Gagal memuat riwayat dari server: $e');
+      }
+    }
+
+    // Fallback ke penyimpanan lokal HistoryService (SharedPreferences)
+    try {
+      final list = await HistoryService.getHistoryList();
+      if (!mounted) return;
+      setState(() {
+        _history = list;
+        _isLoading = false;
+        _error = null;
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
+<<<<<<< HEAD
         _error = 'Tidak dapat memuat riwayat dari server. Pastikan backend Go (port 8081) dan MySQL menyala.';
       });
     }
   }
+=======
+        _error = 'Tidak dapat memuat riwayat skrining.';
+      });
+    }
+  }
+
+  Color _resolveColor(dynamic val, Color fallback) {
+    if (val is Color) return val;
+    if (val is int) return Color(val);
+    return fallback;
+  }
+
+  IconData _resolveIcon(dynamic iconVal, dynamic category) {
+    if (iconVal is IconData) return iconVal;
+    if (category == 'extreme') return Icons.error_outline_rounded;
+    if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
+    return Icons.warning_amber_rounded;
+  }
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   /// Mengubah satu baris `screening_sessions` dari backend menjadi struktur kartu riwayat
   Map<String, dynamic> _mapSession(Map<String, dynamic> s) {
@@ -242,7 +320,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Icon(Icons.history_toggle_off_rounded, size: 40, color: NeoColors.darkGray),
           SizedBox(height: 8),
           Text(
-            'Belum ada riwayat skrining.\nMulai skrining pertama Anda sekarang!',
+            'Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -404,6 +482,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ],
               ),
+<<<<<<< HEAD
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -413,6 +492,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     fontWeight: FontWeight.w900,
                     color: NeoColors.borderBlack,
                   ),
+=======
+              child: Text(
+                '${_history.length} Sesi',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: NeoColors.borderBlack,
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
                 ),
               ),
             ),

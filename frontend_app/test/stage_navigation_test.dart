@@ -35,6 +35,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+<<<<<<< HEAD
       // Tap button Lanjut ke Tahap 2
       final continueButton = find.text("Lanjut ke Tahap 2 →");
       expect(continueButton, findsOneWidget);
@@ -52,6 +53,9 @@ void main() {
 
       // Harus berpindah ke Stage 2
       expect(find.byType(Stage2PhysicalScreen), findsOneWidget);
+=======
+
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       expect(find.text("Tahap 2: Gait Tracker"), findsOneWidget);
     });
 
