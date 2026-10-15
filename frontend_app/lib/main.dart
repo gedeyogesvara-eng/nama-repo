@@ -27,7 +27,7 @@ import 'screens/history_screen.dart';
 
 // JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
 // HAPUS TANDA // DI BAWAH INI:
-// import 'firebase_options.dart';
+//import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
