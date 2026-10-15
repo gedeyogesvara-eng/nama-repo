@@ -2,13 +2,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-<<<<<<< HEAD
 import 'services/auth_service.dart';
+import 'services/api_config.dart';
+import 'theme/theme_controller.dart';
 
-=======
-import 'package:firebase_core/firebase_core.dart';
-import 'screens/splash_screen.dart';
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -20,17 +17,16 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
-import 'services/auth_service.dart';
+import 'screens/anti_zombie_recipe_screen.dart';
 
-<<<<<<< HEAD
-=======
-// JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
-// HAPUS TANDA // DI BAWAH INI:
-//import 'firebase_options.dart';
-
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi konfigurasi API & SharedPreferences
+  await ApiConfig.init();
+
+  // Inisialisasi Tema Aplikasi (Light / Dark Mode)
+  await themeController.init();
 
   // Autentikasi memakai Backend Go + MySQL (tanpa Firebase).
   // Pulihkan sesi login terakhir (user_id & full_name) jika ada.
@@ -87,42 +83,57 @@ class DepressionDetectionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: authService.navigatorKey,
-      title: 'RESTGUARD - Mental Health & Fatigue Detection',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF2F1EB),
-        fontFamily: 'sans-serif',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF314BB5),
-          primary: const Color(0xFF314BB5),
-          secondary: const Color(0xFFFFC436),
-          surface: const Color(0xFFF2F1EB),
-        ),
-      ),
-<<<<<<< HEAD
-      home: authService.currentUser != null
-          ? const DashboardScreen()
-          : const WelcomeScreen(),
-=======
-      home: const SplashScreen(),
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
-      routes: {
-        '/splash': (context) => const SplashScreen(),
-        '/welcome': (context) => const WelcomeScreen(),
-        '/auth': (context) => const WelcomeScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/forgot_password': (context) => const ForgotPasswordScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/stage1': (context) => const Stage1MentalScreen(),
-        '/stage2': (context) => const Stage2PhysicalScreen(),
-        '/stage3': (context) => const Stage3VisualScreen(),
-        '/loading_scan': (context) => const LoadingScanScreen(),
-        '/result': (context) => const ResultScreen(),
-        '/history': (context) => const HistoryScreen(),
-        '/prototype': (context) => const PrototypeRootScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeController.themeModeNotifier,
+      builder: (context, currentMode, _) {
+        return MaterialApp(
+          title: 'RESTGUARD - Mental Health & Fatigue Detection',
+          debugShowCheckedModeBanner: false,
+          themeMode: currentMode,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: const Color(0xFFF2F1EB),
+            fontFamily: 'sans-serif',
+            colorScheme: ColorScheme.fromSeed(
+              brightness: Brightness.light,
+              seedColor: const Color(0xFF314BB5),
+              primary: const Color(0xFF314BB5),
+              secondary: const Color(0xFFFFC436),
+              surface: const Color(0xFFF2F1EB),
+            ),
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: const Color(0xFF121217),
+            fontFamily: 'sans-serif',
+            colorScheme: ColorScheme.fromSeed(
+              brightness: Brightness.dark,
+              seedColor: const Color(0xFF4C6EF5),
+              primary: const Color(0xFF4C6EF5),
+              secondary: const Color(0xFFFFC436),
+              surface: const Color(0xFF1E1E26),
+            ),
+          ),
+          home: authService.currentUser != null
+              ? const DashboardScreen()
+              : const WelcomeScreen(),
+          routes: {
+            '/welcome': (context) => const WelcomeScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/forgot_password': (context) => const ForgotPasswordScreen(),
+            '/dashboard': (context) => const DashboardScreen(),
+            '/home': (context) => const DashboardScreen(),
+            '/recipes': (context) => const AntiZombieRecipeScreen(),
+            '/stage1': (context) => const Stage1MentalScreen(),
+            '/stage2': (context) => const Stage2PhysicalScreen(),
+            '/stage3': (context) => const Stage3VisualScreen(),
+            '/loading_scan': (context) => const LoadingScanScreen(),
+            '/result': (context) => const ResultScreen(),
+            '/history': (context) => const HistoryScreen(),
+            '/prototype': (context) => const PrototypeRootScreen(),
+          },
+        );
       },
     );
   }

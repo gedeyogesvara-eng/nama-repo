@@ -69,4 +69,41 @@ class BackendService {
       if (client == null) c.close();
     }
   }
+
+  /// Menambahkan resep mandiri buatan pengguna ke backend MySQL.
+  static Future<Map<String, dynamic>?> addCustomRecipe({
+    required int userId,
+    required String deskripsi,
+    String jenis = 'Mandiri',
+    http.Client? client,
+  }) async {
+    final c = client ?? http.Client();
+    try {
+      final res = await c
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/recipes/custom'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'user_id': userId,
+              'deskripsi_tugas': deskripsi.trim(),
+              'jenis_intervensi': jenis.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is Map<String, dynamic> && decoded['recipe'] is Map) {
+        return Map<String, dynamic>.from(decoded['recipe']);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Gagal menambahkan resep mandiri: $e');
+      return null;
+    } finally {
+      if (client == null) c.close();
+    }
+  }
 }

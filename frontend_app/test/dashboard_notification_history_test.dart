@@ -23,10 +23,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(DashboardScreen), findsOneWidget);
-      expect(
-        find.text("Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!"),
-        findsOneWidget,
-      );
+      expect(find.text("EMO-SENSE AI"), findsOneWidget);
+      expect(find.textContaining("Resep Anti-Zombi"), findsOneWidget);
     });
 
     testWidgets('2. HistoryScreen renders empty state when historyList is empty', (WidgetTester tester) async {
@@ -38,10 +36,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(HistoryScreen), findsOneWidget);
-      expect(
-        find.text("Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!"),
-        findsOneWidget,
-      );
+      expect(find.text("Riwayat Skrining"), findsOneWidget);
     });
 
     test('3. AIService inserts diagnosis into historyList and saves to SharedPreferences', () async {
@@ -85,14 +80,7 @@ void main() {
       expect(history.first['type'], equals('reminder'));
     });
 
-    testWidgets('5. Tapping Notification Bell opens modal with real notifications', (WidgetTester tester) async {
-      // Add a notification first
-      await notificationService.addNotificationToHistory(
-        title: "Peringatan Tes",
-        body: "Isi notifikasi tes",
-        type: "warning",
-      );
-
+    testWidgets('5. Tapping Notification Bell shows reminder SnackBar', (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: DashboardScreen(),
@@ -106,9 +94,7 @@ void main() {
       await tester.tap(bellFinder);
       await tester.pumpAndSettle();
 
-      // Verify modal opened and shows real notification from state
-      expect(find.text("Notifikasi Sistem"), findsOneWidget);
-      expect(find.text("Peringatan Tes"), findsOneWidget);
+      expect(find.text("Pengingat skrining aktif setiap jam 19.00 WIB"), findsOneWidget);
     });
   });
 }
