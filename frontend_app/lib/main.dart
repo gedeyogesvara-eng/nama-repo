@@ -6,6 +6,11 @@ import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
 import 'screens/stage3_visual_screen.dart';
+import 'screens/welcome_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/dashboard_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,19 +61,27 @@ class DepressionDetectionApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Depression Detection App - Full Prototype',
+      title: 'RESTGUARD - Mental Health & Fatigue Detection',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.appBg,
+        scaffoldBackgroundColor: const Color(0xFFF2F1EB),
         fontFamily: 'sans-serif',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.primaryBlue,
-          primary: AppColors.primaryBlue,
-          secondary: AppColors.primaryYellow,
-          surface: AppColors.appBg,
+          seedColor: const Color(0xFF314BB5),
+          primary: const Color(0xFF314BB5),
+          secondary: const Color(0xFFFFC436),
+          surface: const Color(0xFFF2F1EB),
         ),
       ),
-      home: const PrototypeRootScreen(),
+      home: const WelcomeScreen(),
+      routes: {
+        '/welcome': (context) => const WelcomeScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/forgot_password': (context) => const ForgotPasswordScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
+        '/prototype': (context) => const PrototypeRootScreen(),
+      },
     );
   }
 }
@@ -108,6 +121,10 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   final List<Offset?> _drawingPoints = [];
 
   final List<Map<String, String>> _screensList = const [
+    {'id': 'welcome', 'name': '0. Welcome (RESTGUARD)'},
+    {'id': 'login', 'name': '0a. Login Screen'},
+    {'id': 'register', 'name': '0b. Register Screen'},
+    {'id': 'forgot_password', 'name': '0c. Reset Password'},
     {'id': 'splash', 'name': '1. Splash / Auth'},
     {'id': 'permissions', 'name': '2. Izin Sensor'},
     {'id': 'dashboard', 'name': '3. Dashboard'},
@@ -384,12 +401,20 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   // Switch Screen Controller
   Widget _buildCurrentScreenView() {
     switch (_currentScreen) {
+      case 'welcome':
+        return const WelcomeScreen();
+      case 'login':
+        return const LoginScreen();
+      case 'register':
+        return const RegisterScreen();
+      case 'forgot_password':
+        return const ForgotPasswordScreen();
       case 'splash':
         return _buildSplashAuthScreen();
       case 'permissions':
         return _buildPermissionsScreen();
       case 'dashboard':
-        return _buildDashboardScreen();
+        return const DashboardScreen();
       case 'stage1':
         return const Stage1MentalScreen();
       case 'stage2':
@@ -409,7 +434,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
       case 'loading_scan':
         return const LoadingScanScreen();
       default:
-        return _buildDashboardScreen();
+        return const DashboardScreen();
     }
   }
 

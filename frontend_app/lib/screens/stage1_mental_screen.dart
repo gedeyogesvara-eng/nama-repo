@@ -62,7 +62,8 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
   final GlobalKey _canvasKey = GlobalKey();
 
   bool _isRecordingVoice = false;
-  int _voiceSeconds = 10;
+  bool _voiceSaved = false;
+  int _voiceSeconds = 15;
   Timer? _voiceTimer;
   Color _selectedColor = NeoColors.white;
   bool _isSavingData = false;
@@ -102,7 +103,8 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
 
       setState(() {
         _isRecordingVoice = true;
-        _voiceSeconds = 10;
+        _voiceSaved = false;
+        _voiceSeconds = 15;
       });
 
       _voiceTimer?.cancel();
@@ -119,18 +121,20 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
           timer.cancel();
           setState(() {
             _isRecordingVoice = false;
-            _voiceSeconds = 0;
+            _voiceSaved = true;
           });
-          // Otomatis siapkan file audio setelah 10 detik
+          // Otomatis siapkan file audio
           _prepareAudioFile();
         }
       });
     } else {
+      // Tombol ditekan kedua kali: Berhenti merekam & simpan suara
       _voiceTimer?.cancel();
       setState(() {
         _isRecordingVoice = false;
+        _voiceSaved = true;
       });
-      _prepareAudioFile();
+      await _prepareAudioFile();
     }
   }
 
@@ -302,12 +306,16 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
               child: Icon(Icons.person, size: 20, color: NeoColors.black),
             ),
             SizedBox(width: 10),
-            Text(
-              "1st stage - Draw & Talk",
-              style: TextStyle(
-                color: NeoColors.black,
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
+            Expanded(
+              child: Text(
+                "Tahap 1: Draw & Talk",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: NeoColors.black,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ],
@@ -319,269 +327,220 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Prompt instruction
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0E7FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: NeoColors.borderBlack, width: 2),
-                ),
-                child: const Text(
-                  "1. Corat-coret ekspresif di kanvas. 2. Tekan Mic & ceritakan emosimu.",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: NeoColors.primaryBlue,
-                  ),
+              // ==========================================
+              // BAGIAN DRAW (Super Sederhana & To The Point)
+              // ==========================================
+              const Text(
+                "Draw",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: NeoColors.black,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 4),
+              const Text(
+                "Gambarlah apapun yang ada di kepala Anda.",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: NeoColors.darkGray,
+                ),
+              ),
+              const SizedBox(height: 14),
 
-              // THE EXACT OFFSET CANVAS FOR DRAWING (DENGAN REPAINT BOUNDARY)
-              OffsetCanvasBox(
-                width: 290,
-                height: 270,
-                backgroundColor: NeoColors.primaryBlue,
-                outlineColor: NeoColors.primaryBlue,
-                borderRadius: 32,
-                offset: 10,
-                padding: EdgeInsets.zero,
-                child: Stack(
-                  children: [
-                    // RepaintBoundary membungkus kanvas gambar
-                    RepaintBoundary(
-                      key: _canvasKey,
-                      child: Container(
-                        color: NeoColors.primaryBlue,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: GestureDetector(
-                            onPanStart: (details) {
-                              setState(() {
-                                _points.add(
-                                  DrawingPoint(
-                                    offset: details.localPosition,
-                                    paint: Paint()
-                                      ..color = _selectedColor
-                                      ..isAntiAlias = true
-                                      ..strokeWidth = 4.0
-                                      ..strokeCap = StrokeCap.round,
-                                  ),
-                                );
-                              });
-                            },
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _points.add(
-                                  DrawingPoint(
-                                    offset: details.localPosition,
-                                    paint: Paint()
-                                      ..color = _selectedColor
-                                      ..isAntiAlias = true
-                                      ..strokeWidth = 4.0
-                                      ..strokeCap = StrokeCap.round,
-                                  ),
-                                );
-                              });
-                            },
-                            onPanEnd: (details) {
-                              setState(() {
-                                _points.add(null);
-                              });
-                            },
-                            child: CustomPaint(
-                              size: Size.infinite,
-                              painter: DrawingPainter(points: _points),
+              // Kanvas Menggambar Responsif untuk Semua HP Android
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final double canvasWidth = (constraints.maxWidth - 12).clamp(240.0, 360.0);
+                  final double canvasHeight = (canvasWidth * 0.85).clamp(200.0, 260.0);
+
+                  return OffsetCanvasBox(
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    backgroundColor: NeoColors.primaryBlue,
+                    outlineColor: NeoColors.primaryBlue,
+                    borderRadius: 28,
+                    offset: 8,
+                    padding: EdgeInsets.zero,
+                    child: Stack(
+                      children: [
+                        // RepaintBoundary membungkus kanvas gambar
+                        RepaintBoundary(
+                          key: _canvasKey,
+                          child: Container(
+                            color: NeoColors.primaryBlue,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: GestureDetector(
+                                onPanStart: (details) {
+                                  setState(() {
+                                    _points.add(
+                                      DrawingPoint(
+                                        offset: details.localPosition,
+                                        paint: Paint()
+                                          ..color = _selectedColor
+                                          ..isAntiAlias = true
+                                          ..strokeWidth = 4.0
+                                          ..strokeCap = StrokeCap.round,
+                                      ),
+                                    );
+                                  });
+                                },
+                                onPanUpdate: (details) {
+                                  setState(() {
+                                    _points.add(
+                                      DrawingPoint(
+                                        offset: details.localPosition,
+                                        paint: Paint()
+                                          ..color = _selectedColor
+                                          ..isAntiAlias = true
+                                          ..strokeWidth = 4.0
+                                          ..strokeCap = StrokeCap.round,
+                                      ),
+                                    );
+                                  });
+                                },
+                                onPanEnd: (details) {
+                                  setState(() {
+                                    _points.add(null);
+                                  });
+                                },
+                                child: CustomPaint(
+                                  size: Size.infinite,
+                                  painter: DrawingPainter(points: _points),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
 
-                    // Placeholder guidance if empty
-                    if (_points.isEmpty)
-                      Center(
-                        child: IgnorePointer(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.gesture_rounded,
-                                size: 40,
-                                color: Colors.white.withValues(alpha: 0.4),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
+                        // Placeholder sederhana jika kanvas masih kosong
+                        if (_points.isEmpty)
+                          Center(
+                            child: IgnorePointer(
+                              child: Text(
                                 "Goreskan garis bebas di sini...",
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.6),
+                                  color: Colors.white.withValues(alpha: 0.5),
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Toolbar Sederhana: Ganti Warna & Hapus
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () => setState(() => _selectedColor = NeoColors.white),
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: _selectedColor == NeoColors.white
+                                        ? NeoColors.primaryYellow
+                                        : NeoColors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
+                                  ),
+                                  child: const Icon(Icons.edit, size: 18, color: NeoColors.black),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => setState(() => _selectedColor = NeoColors.primaryYellow),
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: _selectedColor == NeoColors.primaryYellow
+                                        ? NeoColors.primaryYellow
+                                        : NeoColors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
+                                  ),
+                                  child: const Icon(Icons.brush, size: 18, color: NeoColors.black),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: _clearCanvas,
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: NeoColors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 18,
+                                    color: NeoColors.redDark,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-
-                    // Top Toolbar (Pen & Eraser icons)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Row(
-                        children: [
-                          // Pen Toggle (White)
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedColor = NeoColors.white;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: _selectedColor == NeoColors.white
-                                    ? NeoColors.primaryYellow
-                                    : NeoColors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: NeoColors.borderBlack,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 18,
-                                color: NeoColors.black,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Yellow Color Pen
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedColor = NeoColors.primaryYellow;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: _selectedColor == NeoColors.primaryYellow
-                                    ? NeoColors.primaryYellow
-                                    : NeoColors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: NeoColors.borderBlack,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.brush,
-                                size: 18,
-                                color: NeoColors.black,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Eraser / Clear Icon
-                          GestureDetector(
-                            onTap: _clearCanvas,
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: NeoColors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: NeoColors.borderBlack,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.delete_outline_rounded,
-                                size: 18,
-                                color: NeoColors.redDark,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
-
-                    // Canvas Info Tag
-                    Positioned(
-                      bottom: 8,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          "${_points.where((p) => p != null).length} Titik Grafomotor",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
-              // TALK SECTION: Thin outline microphone inside circle
+              // ==========================================
+              // BAGIAN TALK (Suara Dinamis & To The Point)
+              // ==========================================
               NeoCard(
                 backgroundColor: NeoColors.white,
                 borderRadius: 20,
                 shadowOffset: 4,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Column(
                   children: [
                     const Text(
-                      "TALK SECTION (Audio Prosody)",
+                      "Talk",
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
                         color: NeoColors.black,
+                        letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      "Ceritakan apa yang paling membebanimu hari ini selama 10 detik.",
+                      "Ceritakan apa yang membebanimu hari ini...",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: NeoColors.darkGray,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+
+                    // Tombol Mikrofon Dinamis
+                    // Saat ditekan pertama: Berubah merah (sedang merekam)
+                    // Saat ditekan lagi: Berhenti dan keterangan "Suara tersimpan"
                     GestureDetector(
                       onTap: _toggleVoiceRecording,
-                      child: Container(
-                        width: 72,
-                        height: 72,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: 76,
+                        height: 76,
                         decoration: BoxDecoration(
                           color: _isRecordingVoice
-                              ? NeoColors.redLight
-                              : NeoColors.background,
+                              ? const Color(0xFFEF4444)
+                              : (_voiceSaved ? const Color(0xFF10B981) : const Color(0xFFF1F0EA)),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: _isRecordingVoice
-                                ? NeoColors.redDark
-                                : NeoColors.primaryBlue,
+                            color: NeoColors.borderBlack,
                             width: 2.5,
                           ),
                           boxShadow: const [
@@ -592,45 +551,42 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                             ),
                           ],
                         ),
-                        child: Icon(
-                          _isRecordingVoice
-                              ? Icons.mic_rounded
-                              : Icons.mic_none_rounded,
-                          size: 36,
-                          color: _isRecordingVoice
-                              ? NeoColors.redDark
-                              : NeoColors.primaryBlue,
+                        child: Center(
+                          child: Icon(
+                            _isRecordingVoice
+                                ? Icons.stop_rounded
+                                : (_voiceSaved ? Icons.check_rounded : Icons.mic_rounded),
+                            size: 38,
+                            color: (_isRecordingVoice || _voiceSaved)
+                                ? Colors.white
+                                : NeoColors.primaryBlue,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+
+                    // Keterangan Status Suara Dinamis
                     Text(
                       _isRecordingVoice
-                          ? "● Merekam Vokal... (00:${_voiceSeconds < 10 ? '0$_voiceSeconds' : '$_voiceSeconds'} / 00:10)"
-                          : (_capturedAudioPath != null
-                              ? "✓ Audio siap dikirim ke AI"
-                              : "Ketuk mikrofon untuk mulai bicara"),
+                          ? "● Sedang Merekam... (Ketuk untuk berhenti)"
+                          : (_voiceSaved ? "Suara tersimpan" : "Ketuk mikrofon untuk mulai bicara"),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: _isRecordingVoice
-                            ? NeoColors.redDark
-                            : (_capturedAudioPath != null
-                                ? NeoColors.greenDark
-                                : NeoColors.slateLight),
+                            ? const Color(0xFFEF4444)
+                            : (_voiceSaved ? const Color(0xFF059669) : NeoColors.slateLight),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
 
-              // Button: "Selesai Corat-coret" -> Stage 2
               NeoButton(
-                text: _isSavingData
-                    ? "Menyimpan Data Sensor..."
-                    : "Selesai Corat-coret & Bicara →",
+                text: _isSavingData ? "Menyimpan Data..." : "Lanjut ke Tahap 2 →",
                 icon: _isSavingData ? Icons.sync : Icons.arrow_forward_rounded,
                 backgroundColor: NeoColors.primaryBlue,
                 textColor: NeoColors.white,
@@ -638,7 +594,7 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                 height: 54,
                 onPressed: _isSavingData ? null : _handleProceedToStage2,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
             ],
           ),
         ),

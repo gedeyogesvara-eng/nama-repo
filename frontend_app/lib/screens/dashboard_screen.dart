@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -11,70 +12,85 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String userName = authService.currentUser?.displayName?.isNotEmpty == true
+        ? authService.currentUser!.displayName!
+        : "Budi Santoso";
+
     return Scaffold(
       backgroundColor: NeoColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header: Avatar + User Info + Notification Bell
+              // Header: Avatar + User Info (Expanded) + Notification Bell
+              // BEBAS OVERFLOW DI SELURUH TIPE HP ANDROID
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: NeoColors.primaryYellow,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: NeoColors.borderBlack,
-                            width: 2.5,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: NeoColors.borderBlack,
-                              offset: Offset(3, 3),
-                              blurRadius: 0,
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: NeoColors.black,
-                            size: 30,
-                          ),
-                        ),
+                  // Foto Profil / Avatar
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: NeoColors.primaryYellow,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: NeoColors.borderBlack,
+                        width: 2.5,
                       ),
-                      const SizedBox(width: 14),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Halo, Budi Santoso",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: NeoColors.black,
-                            ),
-                          ),
-                          Text(
-                            "Kondisi: Belum Skrining Hari Ini",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: NeoColors.darkGray,
-                            ),
-                          ),
-                        ],
+                      boxShadow: const [
+                        BoxShadow(
+                          color: NeoColors.borderBlack,
+                          offset: Offset(3, 3),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: NeoColors.black,
+                        size: 28,
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
+
+                  // Info Pengguna (Dibungkus Expanded agar fleksibel dan tidak overflow)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "Halo, $userName",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: NeoColors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          "Kondisi: Belum Skrining Hari Ini",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: NeoColors.darkGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+
+                  // Lonceng Notifikasi
                   Container(
                     width: 42,
                     height: 42,
@@ -126,18 +142,23 @@ class DashboardScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // THE SIGNATURE "OFFSET CANVAS" (BLUE BACKGROUND)
-              OffsetCanvasBox(
-                width: 280,
-                height: 250,
-                backgroundColor: NeoColors.primaryBlue,
-                outlineColor: NeoColors.primaryBlue,
-                borderRadius: 32,
-                offset: 12,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+              // THE SIGNATURE "OFFSET CANVAS" (RESPONSIF UNTUK ANDROID)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final double canvasWidth = (constraints.maxWidth - 12).clamp(240.0, 360.0);
+                  final double canvasHeight = (canvasWidth * 0.85).clamp(200.0, 260.0);
+
+                  return OffsetCanvasBox(
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    backgroundColor: NeoColors.primaryBlue,
+                    outlineColor: NeoColors.primaryBlue,
+                    borderRadius: 32,
+                    offset: 10,
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
                     // Top Stars / Moon shapes decoration inside
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -228,7 +249,9 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
+              );
+            },
+          ),
 
               const SizedBox(height: 20),
 
