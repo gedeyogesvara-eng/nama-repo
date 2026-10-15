@@ -228,6 +228,7 @@ class WelcomeScreen extends StatelessWidget {
                       // Footer Subtext
                       const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.lock_outline_rounded,
@@ -235,12 +236,15 @@ class WelcomeScreen extends StatelessWidget {
                             color: Color(0xFF9CA3AF),
                           ),
                           SizedBox(width: 6),
-                          Text(
-                            "Privasi & Data Biometrik Anda 100% Terenkripsi",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF9CA3AF),
+                          Flexible(
+                            child: Text(
+                              "Privasi & Data Biometrik Anda 100% Terenkripsi",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF9CA3AF),
+                              ),
                             ),
                           ),
                         ],

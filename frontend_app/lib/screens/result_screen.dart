@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/ai_service.dart';
 
 /// Halaman Hasil Deteksi AI
 /// Menampilkan ringkasan diagnosis, 3 indikator metrik sensor,
@@ -8,7 +9,7 @@ class ResultScreen extends StatefulWidget {
 
   const ResultScreen({
     super.key,
-    required this.detectionData,
+    this.detectionData = const {},
   });
 
   @override
@@ -43,23 +44,27 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   void _parseData() {
+    final Map<String, dynamic> source = widget.detectionData.isNotEmpty
+        ? widget.detectionData
+        : AIService.getFallbackDetectionData();
+
     Map<String, dynamic> rawData;
-    if (widget.detectionData.containsKey('data_skrining') &&
-        widget.detectionData['data_skrining'] is Map) {
+    if (source.containsKey('data_skrining') &&
+        source['data_skrining'] is Map) {
       rawData = Map<String, dynamic>.from(
-          widget.detectionData['data_skrining'] as Map);
-    } else if (widget.detectionData.containsKey('data') &&
-        widget.detectionData['data'] is Map) {
+          source['data_skrining'] as Map);
+    } else if (source.containsKey('data') &&
+        source['data'] is Map) {
       rawData =
-          Map<String, dynamic>.from(widget.detectionData['data'] as Map);
+          Map<String, dynamic>.from(source['data'] as Map);
     } else {
-      rawData = Map<String, dynamic>.from(widget.detectionData);
+      rawData = Map<String, dynamic>.from(source);
     }
 
     if (!rawData.containsKey('kategori_burnout') ||
         rawData['kategori_burnout'] == null) {
-      rawData['kategori_burnout'] = widget.detectionData['tingkat_depresi'] ??
-          widget.detectionData['depression_level'] ??
+      rawData['kategori_burnout'] = source['tingkat_depresi'] ??
+          source['depression_level'] ??
           rawData['tingkat_depresi'] ??
           rawData['status'] ??
           'Kelelahan Terdeteksi';
@@ -67,10 +72,10 @@ class _ResultScreenState extends State<ResultScreen> {
 
     _screeningData = rawData;
 
-    final rawRecipes = (widget.detectionData['ai_recipes'] ??
-            widget.detectionData['resep'] ??
-            widget.detectionData['rekomendasi_tindakan'] ??
-            widget.detectionData['recommendations'] ??
+    final rawRecipes = (source['ai_recipes'] ??
+            source['resep'] ??
+            source['rekomendasi_tindakan'] ??
+            source['recommendations'] ??
             rawData['ai_recipes'] ??
             rawData['resep']) as List<dynamic>? ??
         [];

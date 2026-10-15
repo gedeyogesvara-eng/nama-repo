@@ -98,10 +98,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceFirst("Exception: ", "").trim();
+        if (msg == "Error" || msg.isEmpty) {
+          msg = "Gagal mengirim tautan reset. Silakan coba kembali.";
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.toString().replaceFirst("Exception: ", ""),
+              msg,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,

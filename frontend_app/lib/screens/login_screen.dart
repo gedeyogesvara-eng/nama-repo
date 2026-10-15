@@ -64,8 +64,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceFirst("Exception: ", "").trim();
+        if (msg == "Error" || msg.isEmpty) {
+          msg = "Gagal masuk. Periksa kembali email dan kata sandi Anda.";
+        }
         _showSnackBar(
-          message: e.toString().replaceFirst("Exception: ", ""),
+          message: msg,
           isError: true,
         );
       }
@@ -96,8 +100,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceFirst("Exception: ", "").trim();
+        if (msg == "Error" || msg.isEmpty) {
+          msg = "Gagal login dengan Google. Silakan coba kembali.";
+        }
         _showSnackBar(
-          message: e.toString().replaceFirst("Exception: ", ""),
+          message: msg,
           isError: true,
         );
       }

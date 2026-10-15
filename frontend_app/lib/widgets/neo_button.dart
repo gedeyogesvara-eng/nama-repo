@@ -42,22 +42,20 @@ class _NeoButtonState extends State<NeoButton> {
     final currentOffset = _isPressed && isEnabled ? 1.0 : widget.shadowOffset;
     final transformOffset = _isPressed && isEnabled ? widget.shadowOffset - 1.0 : 0.0;
 
-    return GestureDetector(
-      onTapDown: isEnabled ? (_) => setState(() => _isPressed = true) : null,
-      onTapUp: isEnabled
-          ? (_) {
-              setState(() => _isPressed = false);
-              widget.onPressed?.call();
-            }
-          : null,
-      onTapCancel: isEnabled ? () => setState(() => _isPressed = false) : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 70),
-        transform: Matrix4.translationValues(transformOffset, transformOffset, 0),
-        width: widget.isFullWidth ? double.infinity : null,
-        height: widget.height,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
+    return MouseRegion(
+      cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: isEnabled ? widget.onPressed : null,
+        onTapDown: isEnabled ? (_) => setState(() => _isPressed = true) : null,
+        onTapUp: isEnabled ? (_) => setState(() => _isPressed = false) : null,
+        onTapCancel: isEnabled ? () => setState(() => _isPressed = false) : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 70),
+          width: widget.isFullWidth ? double.infinity : null,
+          height: widget.height,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
           color: isEnabled ? widget.backgroundColor : NeoColors.lightGray,
           borderRadius: BorderRadius.circular(widget.borderRadius),
           border: Border.all(
@@ -103,6 +101,7 @@ class _NeoButtonState extends State<NeoButton> {
                 ),
         ),
       ),
-    );
-  }
+    ),
+  );
+ }
 }
