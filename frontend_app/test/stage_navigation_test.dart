@@ -36,26 +36,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
 
-<<<<<<< HEAD
-      // Tap button Lanjut ke Tahap 2
-      final continueButton = find.text("Lanjut ke Tahap 2 →");
-      expect(continueButton, findsOneWidget);
-      await tester.ensureVisible(continueButton);
-      await tester.tap(continueButton);
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pump(const Duration(milliseconds: 700));
-      await tester.pumpAndSettle();
 
-      for (final w in find.byType(Widget).evaluate()) {
-        if (w.widget.runtimeType.toString().contains('Stage')) {
-          debugPrint("FOUND STAGE WIDGET: ${w.widget.runtimeType}");
-        }
-      }
-
-      // Harus berpindah ke Stage 2
-      expect(find.byType(Stage2PhysicalScreen), findsOneWidget);
-=======
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
       expect(find.text("Tahap 2: Gait Tracker"), findsOneWidget);
       expect(find.text("Mulai Berjalan (10 Detik)"), findsOneWidget);
 

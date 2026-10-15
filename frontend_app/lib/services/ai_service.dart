@@ -2,12 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-<<<<<<< HEAD
-import 'api_config.dart';
-=======
 import 'history_service.dart';
-
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend Go (Gin) yang
 /// meneruskan data ke server AI Python dan menyimpan hasilnya ke MySQL.
@@ -16,17 +11,10 @@ import 'history_service.dart';
 /// (`MultipartFile.fromBytes`) sehingga aman dijalankan di Flutter Web (Chrome)
 /// maupun Android/iOS tanpa `dart:io`.
 class AIService {
-<<<<<<< HEAD
-  /// Endpoint deteksi multimodal. Base URL ditentukan [ApiConfig] sesuai platform:
-  /// - Web / Desktop: http://127.0.0.1:8081
-  /// - Android Emulator: http://10.0.2.2:8081
-  /// (dapat di-override dengan --dart-define=API_BASE_URL=http://IP:8081)
-  static String get defaultEndpoint => '${ApiConfig.baseUrl}/api/detect';
-=======
   // ===========================================================================
   // ⚙️ KONFIGURASI URL BACKEND AI (UBAH DI SINI DENGAN MUDAH)
   // ===========================================================================
-  
+
   /// 1. [OPSI NGROK] Cukup tempel URL Ngrok tim Anda di sini jika menggunakan Cloud Tunnel.
   ///    Contoh: 'https://xxxx-xx-xx.ngrok-free.app/api/detect'
   ///    Jika diisi (bukan null/kosong), sistem akan langsung menggunakan URL ini di semua device.
@@ -56,7 +44,6 @@ class AIService {
     }
     return 'http://$localIPv4:$port$apiPath';
   }
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 
   /// Minimal binary JPEG 1x1 pixel buffer untuk fallback jika kamera tidak tersedia
   static const List<int> _minimalJpegBytes = [
@@ -110,15 +97,8 @@ class AIService {
     http.Client? client,
   }) async {
     final targetUrl = customEndpoint ?? defaultEndpoint;
-<<<<<<< HEAD
     debugPrint('🚀 [AIService] Mengirim data ke backend ($targetUrl) user_id=$userId');
     debugPrint('📷 Wajah: ${faceImageBytes?.length ?? 0} B | 🎨 Coretan: ${drawingImageBytes?.length ?? 0} B | 🎙️ Audio: ${audioBytes?.length ?? 0} B');
-=======
-    debugPrint('🚀 [AIService] Mengirim data ke AI Model (${kIsWeb ? "Web/Chrome" : (ngrokUrl != null ? "Ngrok/Tunnel" : "Mobile/HP Fisik")}): $targetUrl');
-    debugPrint('📷 Face Image: $faceImagePath');
-    debugPrint('🎨 Drawing Image: $drawingImagePath');
-    debugPrint('🎙️ Audio: $audioPath');
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 
     final httpClient = client ?? http.Client();
     try {
@@ -159,43 +139,24 @@ class AIService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is Map<String, dynamic>) {
-<<<<<<< HEAD
-          return normalizeResponse(decoded);
+          final normalized = normalizeResponse(decoded);
+          await HistoryService.addDiagnosisFromApi(normalized);
+          return normalized;
         }
         throw Exception('Format respons backend bukan objek JSON valid.');
       }
 
       debugPrint('⚠️ Backend error [${response.statusCode}]. Menggunakan fallback.');
-      return getFallbackDetectionData();
-    } catch (e) {
-      debugPrint('⚠️ [AIService] Backend tidak terjangkau: $e. Mengaktifkan diagnosis fallback.');
-      return getFallbackDetectionData();
-    } finally {
-      if (client == null) httpClient.close();
-=======
-          final normalized = normalizeResponse(decoded);
-          // 3. Otomatis tambahkan (insert) ke historyList dan simpan ke SharedPreferences
-          await HistoryService.addDiagnosisFromApi(normalized);
-          return normalized;
-        } else {
-          throw Exception(
-            'Format respons backend bukan berupa objek JSON valid.',
-          );
-        }
-      } else {
-        debugPrint(
-          '⚠️ AI Server Error [${response.statusCode}]: ${response.body}. Menggunakan fallback.',
-        );
-        final fallback = getFallbackDetectionData();
-        await HistoryService.addDiagnosisFromApi(fallback);
-        return fallback;
-      }
-    } catch (e) {
-      debugPrint('⚠️ [AIService] Error saat menghubungi AI Backend: $e. Mengaktifkan diagnosis fallback cerdas.');
       final fallback = getFallbackDetectionData();
       await HistoryService.addDiagnosisFromApi(fallback);
       return fallback;
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
+    } catch (e) {
+      debugPrint('⚠️ [AIService] Backend tidak terjangkau: $e. Mengaktifkan diagnosis fallback.');
+      final fallback = getFallbackDetectionData();
+      await HistoryService.addDiagnosisFromApi(fallback);
+      return fallback;
+    } finally {
+      if (client == null) httpClient.close();
     }
   }
 

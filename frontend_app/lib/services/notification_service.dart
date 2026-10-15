@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -40,18 +41,18 @@ class NotificationService {
       }
 
       // Pengaturan Android dengan ikon aplikasi default
-      const AndroidInitializationSettings initializationSettingsAndroid =
+      final AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');
 
       // Pengaturan Darwin / iOS
-      const DarwinInitializationSettings initializationSettingsDarwin =
+      final DarwinInitializationSettings initializationSettingsDarwin =
           DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       );
 
-      const InitializationSettings initializationSettings =
+      final InitializationSettings initializationSettings =
           InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsDarwin,
@@ -86,7 +87,7 @@ class NotificationService {
     final String body = customBody ??
         "Hasil analisis multimodal mendeteksi kelelahan saraf akut & deselerasi motorik. Segera hentikan aktivitas dan ambil waktu istirahat!";
 
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'zombie_warning_channel',
       'Peringatan Darurat Gejala Zombie',
       channelDescription:
@@ -99,7 +100,7 @@ class NotificationService {
       playSound: true,
     );
 
-    const NotificationDetails platformDetails = NotificationDetails(
+    final NotificationDetails platformDetails = NotificationDetails(
       android: androidDetails,
       iOS: DarwinNotificationDetails(
         presentAlert: true,
@@ -139,7 +140,7 @@ class NotificationService {
     final String body = customBody ??
         "Sudah 24 jam sejak skrining terakhir. Luangkan waktu 1 menit untuk cek kondisi mental & fisik Anda.";
 
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'next_day_reminder_channel',
       'Pengingat Skrining 24 Jam',
       channelDescription:
@@ -151,7 +152,7 @@ class NotificationService {
       playSound: true,
     );
 
-    const NotificationDetails platformDetails = NotificationDetails(
+    final NotificationDetails platformDetails = NotificationDetails(
       android: androidDetails,
       iOS: DarwinNotificationDetails(
         presentAlert: true,

@@ -2,13 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-<<<<<<< HEAD
-import 'services/auth_service.dart';
-
-=======
-import 'package:firebase_core/firebase_core.dart';
 import 'screens/splash_screen.dart';
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -21,14 +15,6 @@ import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
 import 'services/auth_service.dart';
-
-<<<<<<< HEAD
-=======
-// JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
-// HAPUS TANDA // DI BAWAH INI:
-//import 'firebase_options.dart';
-
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -101,13 +87,7 @@ class DepressionDetectionApp extends StatelessWidget {
           surface: const Color(0xFFF2F1EB),
         ),
       ),
-<<<<<<< HEAD
-      home: authService.currentUser != null
-          ? const DashboardScreen()
-          : const WelcomeScreen(),
-=======
       home: const SplashScreen(),
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),

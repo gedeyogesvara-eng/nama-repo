@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
 import '../services/auth_service.dart';
 import '../services/backend_service.dart';
-=======
 import '../services/history_service.dart';
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -26,7 +23,6 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   String _selectedFilter = 'all'; // 'all', 'healthy', 'moderate', 'extreme'
 
-<<<<<<< HEAD
   List<Map<String, dynamic>> _history = [];
   bool _isLoading = true;
   String? _error;
@@ -35,9 +31,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
     'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
   ];
-=======
-  // 1 & 2. State historyList awal dibuat kosong [] (tidak ada data dummy hardcoded)
-  List<Map<String, dynamic>> _historyList = [];
 
   @override
   void initState() {
@@ -54,17 +47,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   void _onHistoryUpdated() {
     if (mounted) {
-      setState(() {
-        _historyList = HistoryService.historyNotifier.value;
-      });
+      final updated = HistoryService.historyNotifier.value;
+      if (updated.isNotEmpty || authService.currentUserId == null) {
+        setState(() {
+          _history = updated;
+        });
+      }
     }
   }
 
   Future<void> _loadHistory() async {
-    final list = await HistoryService.getHistoryList();
-    if (mounted) {
+    final userId = authService.currentUserId;
+    if (userId != null) {
       setState(() {
-        _historyList = list;
+        _isLoading = true;
+        _error = null;
+      });
+
+      try {
+        final rows = await BackendService.fetchHistory(userId);
+        if (rows.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _history = rows.map(_mapSession).toList();
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        debugPrint('Gagal memuat riwayat dari server: $e');
+      }
+    }
+
+    // Fallback ke penyimpanan lokal HistoryService (SharedPreferences)
+    try {
+      final list = await HistoryService.getHistoryList();
+      if (!mounted) return;
+      setState(() {
+        _history = list;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Tidak dapat memuat riwayat skrining.';
       });
     }
   }
@@ -80,45 +108,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (category == 'extreme') return Icons.error_outline_rounded;
     if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
     return Icons.warning_amber_rounded;
-  }
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
-
-  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
-  Future<void> _loadHistory() async {
-    final userId = authService.currentUserId;
-    if (userId == null) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Silakan login terlebih dahulu untuk melihat riwayat skrining.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final rows = await BackendService.fetchHistory(userId);
-      if (!mounted) return;
-      setState(() {
-        _history = rows.map(_mapSession).toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _error = 'Tidak dapat memuat riwayat dari server. Pastikan backend Go (port 8081) dan MySQL menyala.';
-      });
-    }
   }
 
   /// Mengubah satu baris `screening_sessions` dari backend menjadi struktur kartu riwayat
@@ -288,7 +277,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Icon(Icons.history_toggle_off_rounded, size: 40, color: NeoColors.darkGray),
           SizedBox(height: 8),
           Text(
-            'Belum ada riwayat skrining.\nMulai skrining pertama Anda sekarang!',
+            'Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -303,11 +292,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
     final filtered = _history.where((item) {
-=======
-    final filtered = _historyList.where((item) {
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
       if (_selectedFilter == 'all') return true;
       return item['category'] == _selectedFilter;
     }).toList();
@@ -434,7 +419,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ],
                   ),
-<<<<<<< HEAD
                 ),
               ],
             ),
@@ -462,59 +446,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   fontWeight: FontWeight.w900,
                   color: NeoColors.borderBlack,
                 ),
-=======
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    size: 20,
-                    color: NeoColors.primaryBlue,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Riwayat Skrining',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: NeoColors.primaryBlue,
-                      height: 1.1,
-                    ),
-                  ),
-                  Text(
-                    'Rekapitulasi Multimodal AI',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: NeoColors.primaryBlue.withValues(alpha: 0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: NeoColors.primaryYellow,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: NeoColors.borderBlack, width: 2),
-              boxShadow: const [
-                BoxShadow(
-                  color: NeoColors.borderBlack,
-                  offset: Offset(2, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              '${_historyList.length} Sesi',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: NeoColors.borderBlack,
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
               ),
             ),
           ),
@@ -525,22 +456,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- STAT OVERVIEW BANNER ---
   Widget _buildStatBanner() {
-    final int totalSessions = _historyList.length;
-    int avgScore = 0;
-    String latestCondition = "-";
-
-    if (_historyList.isNotEmpty) {
-      final totalScore = _historyList.fold<int>(
-        0,
-        (sum, item) => sum + ((item['score'] as int?) ?? 70),
-      );
-      avgScore = (totalScore / _historyList.length).round();
-      final latestTitle = (_historyList.first['title'] ?? 'Tercatat').toString();
-      latestCondition = latestTitle.length > 14
-          ? "${latestTitle.substring(0, 12)}..."
-          : latestTitle;
-    }
-
     return NeoCard(
       backgroundColor: NeoColors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -548,19 +463,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-<<<<<<< HEAD
           _buildStatColumn('Total Sesi', '${_history.length}', Icons.history_edu_rounded),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
           _buildStatColumn('Rata-rata Skor', _averageScoreLabel, Icons.analytics_outlined),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
           _buildStatColumn('Kondisi Terkini', _latestConditionLabel, Icons.verified_user_outlined),
-=======
-          _buildStatColumn('Total Sesi', '$totalSessions', Icons.history_edu_rounded),
-          Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Rata-rata Skor', totalSessions > 0 ? '$avgScore / 100' : '-', Icons.analytics_outlined),
-          Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Kondisi Terkini', latestCondition, Icons.verified_user_outlined),
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
         ],
       ),
     );
@@ -599,25 +506,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- FILTER CHIPS ---
   Widget _buildFilterChips() {
-    final int healthyCount =
-        _historyList.where((i) => i['category'] == 'healthy').length;
-    final int moderateCount =
-        _historyList.where((i) => i['category'] == 'moderate').length;
-    final int extremeCount =
-        _historyList.where((i) => i['category'] == 'extreme').length;
-
     final filters = [
-<<<<<<< HEAD
       {'key': 'all', 'label': 'Semua (${_history.length})'},
       {'key': 'healthy', 'label': 'Prima (${_countCategory('healthy')})'},
       {'key': 'moderate', 'label': 'Burnout (${_countCategory('moderate')})'},
       {'key': 'extreme', 'label': 'Kritis (${_countCategory('extreme')})'},
-=======
-      {'key': 'all', 'label': 'Semua (${_historyList.length})'},
-      {'key': 'healthy', 'label': 'Prima ($healthyCount)'},
-      {'key': 'moderate', 'label': 'Burnout ($moderateCount)'},
-      {'key': 'extreme', 'label': 'Kritis ($extremeCount)'},
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
     ];
 
     return SingleChildScrollView(

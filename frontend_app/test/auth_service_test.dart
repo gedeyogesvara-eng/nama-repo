@@ -4,14 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend_app/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-<<<<<<< HEAD
     authService.client = MockClient((request) async {
       if (request.url.path == '/api/register' || request.url.path == '/api/login') {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -50,10 +48,6 @@ void main() {
       }
       return http.Response(jsonEncode({'status': 'error', 'message': 'Not found'}), 404);
     });
-  });
-
-  group('AuthService Tests', () {
-=======
   });
 
   group('AuthService with SharedPreferences Simulation', () {
@@ -149,7 +143,6 @@ void main() {
   });
 
   group('AuthService Demo & Integration Tests', () {
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
     test('Registrasi berhasil menyimpan profil pengguna maul', () async {
       final success = await authService.registerWithEmail(
         'maul',

@@ -17,19 +17,40 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-<<<<<<< HEAD
   Map<String, dynamic>? _profile;
   bool _isLoadingProfile = true;
-=======
-  // 1 & 2. State list historyList awalnya kosong []
   List<Map<String, dynamic>> _historyList = [];
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
 
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
     _loadProfile();
+    _loadHistory();
+    HistoryService.historyNotifier.addListener(_onHistoryChanged);
+    notificationService.init();
+  }
+
+  @override
+  void dispose() {
+    HistoryService.historyNotifier.removeListener(_onHistoryChanged);
+    super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) {
+      setState(() {
+        _historyList = HistoryService.historyNotifier.value;
+      });
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final list = await HistoryService.getHistoryList();
+    if (mounted) {
+      setState(() {
+        _historyList = list;
+      });
+    }
   }
 
   /// Memuat skor pemulihan & skrining terbaru dari MySQL (via backend Go)
@@ -130,34 +151,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-=======
-    _loadHistory();
-    HistoryService.historyNotifier.addListener(_onHistoryChanged);
-    notificationService.init();
-  }
-
-  @override
-  void dispose() {
-    HistoryService.historyNotifier.removeListener(_onHistoryChanged);
-    super.dispose();
-  }
-
-  void _onHistoryChanged() {
-    if (mounted) {
-      setState(() {
-        _historyList = HistoryService.historyNotifier.value;
-      });
-    }
-  }
-
-  Future<void> _loadHistory() async {
-    final list = await HistoryService.getHistoryList();
-    if (mounted) {
-      setState(() {
-        _historyList = list;
-      });
-    }
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
   }
 
   @override
@@ -243,11 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-<<<<<<< HEAD
-                          _conditionText,
-=======
-                          statusText,
->>>>>>> ad9a20e807b59e23df25c2bfb48a9a5c69cb56bd
+                          _historyList.isNotEmpty ? statusText : _conditionText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
