@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
+=======
 import 'package:image_picker/image_picker.dart';
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import 'loading_scan_screen.dart';
@@ -34,8 +37,11 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
   bool _isCaptured = false;
   bool _isProcessing = false;
+<<<<<<< HEAD
+=======
   Uint8List? _capturedFaceBytes;
   final ImagePicker _imagePicker = ImagePicker();
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   @override
   void initState() {
@@ -71,7 +77,12 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
+  /// Mengambil foto saat tombol ditekan. Foto dibaca sebagai bytes (Web-safe);
+  /// jika kamera tidak tersedia, bytes null -> AIService memakai JPEG placeholder.
+=======
   /// Mengambil foto sklera / mata langsung menggunakan kamera
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   Future<void> _simulateAutoCapture() async {
     if (_isProcessing) return;
 
@@ -138,6 +149,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     }
   }
 
+<<<<<<< HEAD
+=======
   /// Mengambil foto sklera / mata dari Galeri HP
   Future<void> pickImageFromGallery() async {
     if (_isProcessing) return;
@@ -226,6 +239,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     }
   }
 
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -373,6 +387,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           },
                         ),
 
+<<<<<<< HEAD
+=======
                         // 1b. Tampilkan preview foto jika dipilih dari galeri / kamera
                         if (_capturedFaceBytes != null)
                           Positioned.fill(
@@ -385,6 +401,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                             ),
                           ),
 
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
                         // 2. Soft Dark Vignette Overlay
                         Container(
                           color: Colors.black.withValues(alpha: 0.15),
@@ -614,31 +631,18 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
               const SizedBox(height: 16),
 
-              // Tombol Utama: Buka Kamera / Ambil Foto
+              // Button: "Simulate Auto-Capture"
               NeoButton(
                 text: _isCaptured
                     ? "✓ Memproses Multimodal Data..."
-                    : "Buka Kamera (Ambil Foto)",
+                    : "Simulate Auto-Capture (Ambil Foto)",
                 icon: _isCaptured ? Icons.check : Icons.camera_rounded,
                 backgroundColor:
                     _isCaptured ? NeoColors.greenDark : NeoColors.primaryBlue,
                 textColor: NeoColors.white,
                 borderRadius: 28,
-                height: 54,
-                onPressed: _isCaptured || _isProcessing ? null : _simulateAutoCapture,
-              ),
-
-              const SizedBox(height: 10),
-
-              // Tombol Sekunder: Pilih dari Galeri
-              NeoButton(
-                text: "📁 Pilih dari Galeri",
-                icon: Icons.photo_library_rounded,
-                backgroundColor: NeoColors.white,
-                textColor: NeoColors.black,
-                borderRadius: 28,
-                height: 50,
-                onPressed: _isCaptured || _isProcessing ? null : pickImageFromGallery,
+                height: 56,
+                onPressed: _isCaptured ? null : _simulateAutoCapture,
               ),
 
               const SizedBox(height: 8),

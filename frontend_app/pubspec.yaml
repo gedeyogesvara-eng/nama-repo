@@ -18,8 +18,12 @@ dependencies:
   path_provider: ^2.1.6
   shared_preferences: ^2.5.6
   record: ^7.1.2
+<<<<<<< HEAD
+  google_sign_in: 6.2.2
+=======
   flutter_local_notifications: ^22.3.2
   timezone: ^0.11.2
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 dev_dependencies:
   flutter_test:
     sdk: flutter

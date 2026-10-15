@@ -10,7 +10,12 @@ import 'api_config.dart';
 /// - Register  : POST {baseUrl}/api/register -> tabel `users` (atau SharedPreferences lokal jika offline)
 /// - Login     : POST {baseUrl}/api/login (atau verifikasi SharedPreferences lokal jika offline)
 /// - Sesi      : user_id & full_name disimpan di memori + SharedPreferences
+<<<<<<< HEAD
+///               (localStorage di Web) sehingga bertahan saat halaman di-refresh.
+/// Firebase TIDAK lagi dipakai.
+=======
 ///               sehingga bertahan saat aplikasi di-restart atau halaman di-refresh.
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 /// ============================================================================
 
 /// Model pengguna yang sedang login
@@ -23,20 +28,32 @@ class AppUser {
   final int recoveryScore;
   final String zombieStage;
 
+<<<<<<< HEAD
+=======
   String? get photoUrl => photoURL;
   String get uid => _uid ?? (userId > 0 ? userId.toString() : (email ?? '0'));
 
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   const AppUser({
     this.userId = 0,
     String? uid,
     this.displayName,
     this.email,
+<<<<<<< HEAD
+    this.recoveryScore = 40,
+    this.zombieStage = 'TIRED_ZOMBIE',
+  });
+
+  /// Alias kompatibilitas (id pengguna dalam bentuk String)
+  String get uid => userId.toString();
+=======
     String? photoURL,
     String? photoUrl,
     this.recoveryScore = 40,
     this.zombieStage = 'TIRED_ZOMBIE',
   })  : _uid = uid,
         photoURL = photoURL ?? photoUrl;
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     int asInt(dynamic v, int fallback) =>
@@ -68,20 +85,31 @@ class AppUser {
       };
 
   AppUser copyWith({
+<<<<<<< HEAD
+    String? displayName,
+    String? email,
+=======
     int? userId,
     String? uid,
     String? displayName,
     String? email,
     String? photoURL,
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     int? recoveryScore,
     String? zombieStage,
   }) =>
       AppUser(
+<<<<<<< HEAD
+        userId: userId,
+        displayName: displayName ?? this.displayName,
+        email: email ?? this.email,
+=======
         userId: userId ?? this.userId,
         uid: uid ?? this.uid,
         displayName: displayName ?? this.displayName,
         email: email ?? this.email,
         photoURL: photoURL ?? this.photoURL,
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
         recoveryScore: recoveryScore ?? this.recoveryScore,
         zombieStage: zombieStage ?? this.zombieStage,
       );
@@ -93,15 +121,21 @@ class Auth {
         _baseUrlOverride = baseUrl;
 
   static const String _sessionKey = 'restguard_session_user';
+<<<<<<< HEAD
+=======
   static const String _keyEmail = 'user_email';
   static const String _keyPassword = 'user_password';
   static const String _keyName = 'user_name';
   static const String _keyIsLoggedIn = 'is_logged_in';
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   http.Client _client;
   set client(http.Client client) => _client = client;
   final String? _baseUrlOverride;
+<<<<<<< HEAD
+=======
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   AppUser? _currentUser;
   final StreamController<AppUser?> _authStateController =
@@ -267,6 +301,18 @@ class Auth {
   // AKSI AUTENTIKASI
   // --------------------------------------------------------------------------
 
+<<<<<<< HEAD
+  /// a. Registrasi akun baru -> tersimpan di tabel `users` MySQL.
+  /// [autoLogin]: Bila false, akun didaftarkan tanpa langsung mengaktifkan sesi login (user diarahkan ke login).
+  Future<bool> registerWithEmail(
+    String email,
+    String password, {
+    String? name,
+    bool autoLogin = true,
+  }) async {
+    final cleanEmail = email.trim();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+=======
   /// a. Registrasi akun baru (mendukung parameter (email, password, {name}) atau (name, email, password))
   Future<bool> registerWithEmail(
     String arg1,
@@ -292,6 +338,7 @@ class Auth {
     }
 
     if (finalEmail.isEmpty || !finalEmail.contains('@')) {
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       throw Exception('Format alamat email tidak valid.');
     }
     if (finalPassword.length < 6) {
@@ -299,6 +346,27 @@ class Auth {
     }
     if (finalName.isEmpty) finalName = 'Pengguna';
 
+<<<<<<< HEAD
+    final data = await _post('/api/register', {
+      'full_name': cleanName,
+      'email': cleanEmail,
+      'password': password,
+    });
+
+    if (autoLogin) {
+      final userJson = data['user'];
+      if (userJson is! Map<String, dynamic>) {
+        throw Exception('Respons server tidak berisi data pengguna.');
+      }
+      final user = AppUser.fromJson(userJson);
+      if (user.userId <= 0) {
+        throw Exception('Respons server tidak berisi user_id yang valid.');
+      }
+      await _setSession(user);
+    } else {
+      await _setSession(null);
+    }
+=======
     // 1. Simpan secara persisten ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyName, finalName);
@@ -326,6 +394,7 @@ class Auth {
       debugPrint('Backend registration sync note: $e');
     }
 
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     return true;
   }
 
@@ -335,6 +404,66 @@ class Auth {
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
       throw Exception('Format alamat email tidak valid.');
     }
+<<<<<<< HEAD
+    return _authenticate('/api/login', {
+      'email': cleanEmail,
+      'password': password,
+    });
+  }
+
+  /// c. Autentikasi / Registrasi Google langsung ke MySQL melalui Go Backend (/api/auth/google)
+  Future<bool> loginWithGoogleAccount({
+    required String email,
+    String? name,
+    String? googleId,
+    bool setSession = true,
+  }) async {
+    final cleanEmail = email.trim();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      throw Exception('Format alamat email tidak valid.');
+    }
+    final cleanName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : cleanEmail.split('@').first;
+
+    final data = await _post('/api/auth/google', {
+      'email': cleanEmail,
+      'full_name': cleanName,
+      'google_id': googleId ?? '',
+    });
+
+    if (setSession) {
+      final userJson = data['user'];
+      if (userJson is! Map<String, dynamic>) {
+        throw Exception('Respons server tidak berisi data pengguna.');
+      }
+      final user = AppUser.fromJson(userJson);
+      if (user.userId <= 0) {
+        throw Exception('Respons server tidak berisi user_id yang valid.');
+      }
+      await _setSession(user);
+    } else {
+      await _setSession(null);
+    }
+    return true;
+  }
+
+  /// "Masuk dengan Google" default / fallback demo
+  Future<bool> loginWithGoogle() async {
+    try {
+      return await loginWithGoogleAccount(
+        email: 'bagas.google@gmail.com',
+        name: 'Bagas Pratama Google',
+        googleId: 'google-demo-123',
+        setSession: true,
+      );
+    } catch (_) {
+      return _authenticate('/api/login/google-demo', {});
+    }
+  }
+
+  /// d. Permintaan reset kata sandi (backend memvalidasi & mencatat permintaan)
+=======
     if (password.isEmpty) {
       throw Exception('Email dan kata sandi wajib diisi.');
     }
@@ -402,6 +531,7 @@ class Auth {
   }
 
   /// d. Permintaan reset kata sandi
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   Future<bool> resetPassword(String email) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
@@ -415,9 +545,54 @@ class Auth {
     return true;
   }
 
+<<<<<<< HEAD
+  /// Memperbarui nama lengkap pengguna ke backend Go / MySQL dan sesi lokal
+  Future<bool> updateProfileName(String newName) async {
+    final id = currentUserId;
+    final cleanName = newName.trim();
+    if (cleanName.isEmpty) return false;
+
+    if (id != null) {
+      try {
+        final res = await _client
+            .patch(
+              Uri.parse('$baseUrl/api/users/$id/profile'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode({'full_name': cleanName}),
+            )
+            .timeout(const Duration(seconds: 8));
+
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+          if (decoded is Map<String, dynamic> && decoded['user'] is Map) {
+            final fresh = AppUser.fromJson(Map<String, dynamic>.from(decoded['user']));
+            await _setSession(fresh);
+            return true;
+          }
+        }
+      } catch (e) {
+        debugPrint('Gagal update nama via backend: $e');
+      }
+    }
+
+    // Jika offline / server timeout, tetap perbarui sesi lokal
+    if (_currentUser != null) {
+      await _setSession(_currentUser!.copyWith(displayName: cleanName));
+      return true;
+    }
+    return false;
+  }
+
+=======
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   /// Logout dari sesi saat ini
   Future<void> signOut([BuildContext? context]) async {
     await _setSession(null);
+<<<<<<< HEAD
+=======
     final navContext = context ?? navigatorKey.currentContext;
     if (navContext != null && navContext.mounted) {
       Navigator.of(navContext).pushNamedAndRemoveUntil(
@@ -425,6 +600,7 @@ class Auth {
         (route) => false,
       );
     }
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   }
 
   /// Alias logout
@@ -433,5 +609,4 @@ class Auth {
 
 typedef AuthService = Auth;
 typedef User = AppUser;
-typedef LocalUser = AppUser;
 final authService = Auth();

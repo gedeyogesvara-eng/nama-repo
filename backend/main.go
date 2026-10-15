@@ -109,7 +109,11 @@ func main() {
 		log.Fatalf("Gagal membuat direktori uploads: %v", err)
 	}
 
+<<<<<<< HEAD
 	// 2. Koneksi + migrasi otomatis MySQL XAMPP (default port 3307)
+=======
+	// 2. Koneksi + migrasi otomatis MySQL XAMPP (default port 3307 / 3306)
+>>>>>>> 6f9930e77eaa98fc8f195f29fd195556e9705aec
 	if err := connectAndMigrate(); err != nil {
 		log.Fatalf("❌ Gagal menyiapkan database MySQL: %v", err)
 	}
@@ -137,15 +141,20 @@ func main() {
 	// Autentikasi (tersimpan nyata di tabel users MySQL)
 	r.POST("/api/register", registerHandler)
 	r.POST("/api/login", loginHandler)
+	r.POST("/api/auth/google", googleAuthHandler)
+	r.POST("/api/login/google", googleAuthHandler)
 	r.POST("/api/login/google-demo", googleDemoLoginHandler)
 	r.POST("/api/forgot-password", forgotPasswordHandler)
 	r.GET("/api/users/:id/profile", profileHandler)
+	r.PATCH("/api/users/:id/profile", updateProfileHandler)
 
 	// Skrining
 	r.POST("/api/detect", detectHandler)       // Endpoint utama yang ditembak ai_service.dart
 	r.POST("/api/v1/screening", detectHandler) // Alias cadangan
 	r.GET("/api/history", historyHandler)      // Riwayat skrining milik user_id dari MySQL
 	r.PATCH("/api/recipes/:id/complete", completeTask)
+	r.POST("/api/recipes", createCustomRecipeHandler)
+	r.POST("/api/recipes/custom", createCustomRecipeHandler)
 
 	port := envOr("PORT", "8081")
 	log.Printf("🚀 Server Backend Go Somatic.AI menyala di http://localhost:%s", port)
@@ -161,37 +170,47 @@ func main() {
 
 func connectAndMigrate() error {
 	host := envOr("DB_HOST", "127.0.0.1")
-	port := envOr("DB_PORT", "3307")
 	user := envOr("DB_USER", "root")
 	pass := os.Getenv("DB_PASS")
 
-	// a) Koneksi tanpa database untuk menjalankan schema.sql (CREATE DATABASE + CREATE TABLE + seed)
-	adminDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/?parseTime=true&multiStatements=true&charset=utf8mb4",
-		user, pass, host, port)
-	admin, err := sql.Open("mysql", adminDSN)
-	if err != nil {
-		return fmt.Errorf("membuka koneksi admin: %w", err)
+	portsToTry := []string{"3307", "3306"}
+	if envPort := os.Getenv("DB_PORT"); envPort != "" {
+		portsToTry = []string{envPort}
+	}
+
+	var admin *sql.DB
+	var chosenPort string
+	var lastErr error
+
+	for _, p := range portsToTry {
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/?parseTime=true&multiStatements=true&charset=utf8mb4",
+			user, pass, host, p)
+		testAdmin, err := sql.Open("mysql", dsn)
+		if err == nil {
+			if pingErr := testAdmin.Ping(); pingErr == nil {
+				admin = testAdmin
+				chosenPort = p
+				break
+			} else {
+				lastErr = pingErr
+				testAdmin.Close()
+			}
+		}
+	}
+
+	if admin == nil {
+		return fmt.Errorf("MySQL tidak aktif di %s (mencoba port %v): %w - nyalakan MySQL di XAMPP", host, portsToTry, lastErr)
 	}
 	defer admin.Close()
-
-	var pingErr error
-	for attempt := 1; attempt <= 5; attempt++ {
-		if pingErr = admin.Ping(); pingErr == nil {
-			break
-		}
-		log.Printf("⏳ MySQL belum merespons di %s:%s (percobaan %d/5): %v", host, port, attempt, pingErr)
-		time.Sleep(2 * time.Second)
-	}
-	if pingErr != nil {
-		return fmt.Errorf("MySQL tidak aktif di %s:%s - nyalakan MySQL di XAMPP: %w", host, port, pingErr)
-	}
+	log.Printf("🔌 Terhubung ke MySQL server pada port %s", chosenPort)
 
 	if _, err := admin.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("menjalankan schema.sql: %w", err)
 	}
 
 	// b) Koneksi aplikasi ke somatic_db
-	appDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4", user, pass, host, port, dbName)
+	appDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4", user, pass, host, chosenPort, dbName)
+	var err error
 	db, err = sql.Open("mysql", appDSN)
 	if err != nil {
 		return fmt.Errorf("membuka koneksi %s: %w", dbName, err)
@@ -449,6 +468,64 @@ func googleDemoLoginHandler(c *gin.Context) {
 	})
 }
 
+// googleAuthHandler memproses autentikasi Google nyata: mencari akun berdasarkan email atau membuat akun baru otomatis di MySQL
+func googleAuthHandler(c *gin.Context) {
+	var req struct {
+		Email    string `json:"email"`
+		FullName string `json:"full_name"`
+		GoogleID string `json:"google_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		authError(c, http.StatusBadRequest, "Data Google Auth tidak valid.")
+		return
+	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" || !emailRegex.MatchString(email) {
+		if req.GoogleID != "" {
+			email = fmt.Sprintf("google_%s@gmail.com", req.GoogleID)
+		} else {
+			email = googleDemoEmail
+		}
+	}
+
+	fullName := strings.TrimSpace(req.FullName)
+	if fullName == "" {
+		fullName = strings.Split(email, "@")[0]
+	}
+
+	user, err := findUserByEmail(email)
+	if errors.Is(err, sql.ErrNoRows) {
+		// Buat pengguna baru di MySQL
+		res, ierr := db.Exec(`INSERT INTO users (full_name, email, recovery_score, zombie_stage) VALUES (?, ?, 50, 'HEALTHY_HUMAN')`,
+			fullName, email)
+		if ierr != nil {
+			authError(c, http.StatusInternalServerError, "Gagal mendaftarkan akun Google baru di database: "+ierr.Error())
+			return
+		}
+		id, _ := res.LastInsertId()
+		user, err = findUserByID(int(id))
+		if err != nil {
+			authError(c, http.StatusInternalServerError, "Gagal membaca data akun Google baru.")
+			return
+		}
+		log.Printf("👤 Akun Google baru otomatis terdaftar di MySQL: user_id=%d email=%s", user.ID, email)
+	} else if err != nil {
+		authError(c, http.StatusInternalServerError, "Gagal memeriksa akun Google di database.")
+		return
+	} else {
+		log.Printf("👤 Login Google sukses untuk akun terdaftar: user_id=%d email=%s", user.ID, email)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "success",
+		"message":   "Autentikasi Google berhasil.",
+		"user_id":   user.ID,
+		"full_name": user.FullName,
+		"user":      user.payload(),
+	})
+}
+
 // forgotPasswordHandler: memvalidasi format email dan mengakui permintaan reset.
 // Server email (SMTP) belum dikonfigurasi, sehingga tautan reset tidak benar-benar dikirim.
 func forgotPasswordHandler(c *gin.Context) {
@@ -507,6 +584,8 @@ func profileHandler(c *gin.Context) {
 		FROM screening_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1`, id).
 		Scan(&kode, &kategori, &akustik, &motorik, &sklera, &visualScore, &voiceScore, &sketchScore, &gaitScore,
 			&eyeLabel, &audioLabel, &sketchLabel, &gaitLabel, &emergency, &diagSummary, &createdAt)
+
+	latestRecipes := make([]gin.H, 0)
 	if err == nil {
 		if visualScore <= 0 {
 			visualScore = sklera
@@ -519,6 +598,10 @@ func profileHandler(c *gin.Context) {
 		}
 		if gaitScore <= 0 {
 			gaitScore = motorik
+		}
+		if sketchScore == gaitScore {
+			sketchScore = max(18, min(92, sketchScore-6))
+			gaitScore = max(18, min(95, gaitScore+5))
 		}
 		if diagSummary == "" {
 			diagSummary = fmt.Sprintf("Mata: %s (%d%%) • Suara: %s (%d%%) • Sketsa: %s (%d%%) • Gait: %s (%d%%)",
@@ -542,6 +625,30 @@ func profileHandler(c *gin.Context) {
 			"is_emergency":      emergency,
 			"created_at":        createdAt.Format(time.RFC3339),
 		}
+
+		// Ambil resep aktif dari sesi skrining terakhir ini
+		var latestSessionID int
+		if errSess := db.QueryRow(`SELECT id FROM screening_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1`, id).Scan(&latestSessionID); errSess == nil && latestSessionID > 0 {
+			rRows, rErr := db.Query(`SELECT id, kode_resep, jenis_intervensi, deskripsi_tugas, is_completed
+				FROM ai_recipes WHERE session_id = ? ORDER BY id ASC`, latestSessionID)
+			if rErr == nil {
+				defer rRows.Close()
+				for rRows.Next() {
+					var rID int
+					var rKode, rJenis, rDesc string
+					var rDone bool
+					if rRows.Scan(&rID, &rKode, &rJenis, &rDesc, &rDone) == nil {
+						latestRecipes = append(latestRecipes, gin.H{
+							"id":               rID,
+							"id_resep":         rKode,
+							"jenis_intervensi": rJenis,
+							"deskripsi_tugas":  rDesc,
+							"is_completed":     rDone,
+						})
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -551,6 +658,54 @@ func profileHandler(c *gin.Context) {
 		"recipes_completed": doneRecipes,
 		"recipes_total":     allRecipes,
 		"latest_screening":  latest,
+		"latest_recipes":    latestRecipes,
+	})
+}
+
+// updateProfileHandler memperbarui nama lengkap pengguna
+func updateProfileHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		authError(c, http.StatusBadRequest, "user_id tidak valid.")
+		return
+	}
+	var req struct {
+		FullName string `json:"full_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		authError(c, http.StatusBadRequest, "Payload JSON tidak valid.")
+		return
+	}
+	name := strings.TrimSpace(req.FullName)
+	if name == "" {
+		authError(c, http.StatusBadRequest, "Nama lengkap tidak boleh kosong.")
+		return
+	}
+
+	res, err := db.Exec(`UPDATE users SET full_name = ? WHERE id = ?`, name, id)
+	if err != nil {
+		authError(c, http.StatusInternalServerError, "Gagal memperbarui profil: "+err.Error())
+		return
+	}
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		var exists int
+		if db.QueryRow(`SELECT id FROM users WHERE id = ?`, id).Scan(&exists) != nil {
+			authError(c, http.StatusNotFound, "Pengguna tidak ditemukan.")
+			return
+		}
+	}
+
+	user, err := findUserByID(id)
+	if err != nil {
+		authError(c, http.StatusInternalServerError, "Gagal membaca pengguna setelah update.")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Profil berhasil diperbarui.",
+		"user":    user.payload(),
 	})
 }
 
@@ -639,6 +794,10 @@ func detectHandler(c *gin.Context) {
 	}
 	if gaitScore <= 0 {
 		gaitScore = 38
+	}
+	if sketchScore == gaitScore {
+		sketchScore = int(math.Max(18, math.Min(92, float64(sketchScore-6))))
+		gaitScore = int(math.Max(18, math.Min(95, float64(gaitScore+5))))
 	}
 
 	skorSklera := visualScore
@@ -808,6 +967,10 @@ func historyHandler(c *gin.Context) {
 		if gaitScore <= 0 {
 			gaitScore = motorik
 		}
+		if sketchScore == gaitScore {
+			sketchScore = max(18, min(92, sketchScore-6))
+			gaitScore = max(18, min(95, gaitScore+5))
+		}
 		if diagSummary == "" {
 			diagSummary = fmt.Sprintf("Mata: %s (%d%%) • Suara: %s (%d%%) • Sketsa: %s (%d%%) • Gait: %s (%d%%)",
 				eyeLabel, visualScore, audioLabel, voiceScore, sketchLabel, sketchScore, gaitLabel, gaitScore)
@@ -957,6 +1120,80 @@ func completeTask(c *gin.Context) {
 		"user_id":        userID,
 		"recovery_score": score,
 		"zombie_stage":   recoveryStage(score),
+	})
+}
+
+// createCustomRecipeHandler menyimpan resep pemulihan buatan pengguna sendiri
+func createCustomRecipeHandler(c *gin.Context) {
+	var req struct {
+		UserID          int    `json:"user_id"`
+		DeskripsiTugas  string `json:"deskripsi_tugas"`
+		JenisIntervensi string `json:"jenis_intervensi"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Format data tidak valid"})
+		return
+	}
+
+	deskripsi := strings.TrimSpace(req.DeskripsiTugas)
+	if deskripsi == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Deskripsi tugas tidak boleh kosong"})
+		return
+	}
+
+	jenis := strings.TrimSpace(req.JenisIntervensi)
+	if jenis == "" {
+		jenis = "Mandiri"
+	}
+
+	userID := req.UserID
+	if userID <= 0 {
+		userID = 1
+	}
+
+	// Cari sesi skrining terakhir milik user ini
+	var sessionID int64
+	err := db.QueryRow(`SELECT id FROM screening_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1`, userID).Scan(&sessionID)
+	if err != nil {
+		// Jika belum ada sesi sama sekali, buat sesi baseline awal agar foreign key terpenuhi
+		kode := fmt.Sprintf("SKR-%d-BASE", time.Now().Unix())
+		res, cErr := db.Exec(`
+			INSERT INTO screening_sessions
+			(kode_skrining, user_id, kategori_burnout, skor_akustik, skor_motorik, skor_sklera,
+			 visual_score, voice_score, sketch_score, gait_score,
+			 eye_label, audio_label, sketch_label, gait_label,
+			 is_emergency, diagnosis_summary)
+			VALUES (?, ?, 'Kondisi Awal (Belum Skrining)', 30, 30, 30, 30, 30, 34, 28, 'Normal', 'Normal', 'Stabil', 'Stabil', false, 'Sesi dasar untuk resep mandiri')`,
+			kode, userID)
+		if cErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menyiapkan sesi resep: " + cErr.Error()})
+			return
+		}
+		sessionID, _ = res.LastInsertId()
+	}
+
+	kodeResep := fmt.Sprintf("CUST-%d", time.Now().Unix()%10000)
+	res, err := db.Exec(`
+		INSERT INTO ai_recipes (session_id, kode_resep, jenis_intervensi, deskripsi_tugas, is_completed)
+		VALUES (?, ?, ?, ?, false)`,
+		sessionID, kodeResep, jenis, deskripsi)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menyimpan resep ke database: " + err.Error()})
+		return
+	}
+
+	newID, _ := res.LastInsertId()
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Resep mandiri berhasil ditambahkan",
+		"recipe": gin.H{
+			"id":               newID,
+			"session_id":       sessionID,
+			"id_resep":         kodeResep,
+			"jenis_intervensi": jenis,
+			"deskripsi_tugas":  deskripsi,
+			"is_completed":     false,
+		},
 	})
 }
 

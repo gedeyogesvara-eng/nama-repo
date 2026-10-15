@@ -1,89 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend_app/main.dart';
+import 'package:frontend_app/screens/welcome_screen.dart';
 import 'package:frontend_app/screens/stage1_mental_screen.dart';
 import 'package:frontend_app/screens/stage2_physical_screen.dart';
-import 'package:frontend_app/screens/stage3_visual_screen.dart';
 import 'package:frontend_app/screens/result_screen.dart';
 import 'package:frontend_app/services/ai_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
-    SharedPreferences.setMockInitialValues({'is_logged_in': false});
-  });
-
   group('Screening Flow & Route Tests', () {
     testWidgets('Stage 1 renders and has continue button', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Stage1MentalScreen(),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(const DepressionDetectionApp());
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(WelcomeScreen));
+      Navigator.pushNamed(context, '/stage1');
+      await tester.pumpAndSettle();
 
       expect(find.byType(Stage1MentalScreen), findsOneWidget);
       expect(find.text("Tahap 1: Draw & Talk"), findsOneWidget);
       expect(find.text("Lanjut ke Tahap 2 →"), findsOneWidget);
     });
 
-    testWidgets('Stage 2 countdown sequence works: Bersiap... -> 3 -> 2 -> 1 -> Mulai!', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Stage2PhysicalScreen(),
-        ),
+    testWidgets('Stage 1 to Stage 2 button transitions properly', (WidgetTester tester) async {
+      await tester.pumpWidget(const DepressionDetectionApp());
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(WelcomeScreen));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const Stage1MentalScreen()),
       );
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
 
+<<<<<<< HEAD
+      // Tap button Lanjut ke Tahap 2
+      final continueButton = find.text("Lanjut ke Tahap 2 →");
+      expect(continueButton, findsOneWidget);
+      await tester.ensureVisible(continueButton);
+      await tester.tap(continueButton);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
 
+      for (final w in find.byType(Widget).evaluate()) {
+        if (w.widget.runtimeType.toString().contains('Stage')) {
+          debugPrint("FOUND STAGE WIDGET: ${w.widget.runtimeType}");
+        }
+      }
+
+      // Harus berpindah ke Stage 2
+      expect(find.byType(Stage2PhysicalScreen), findsOneWidget);
+=======
+
+>>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       expect(find.text("Tahap 2: Gait Tracker"), findsOneWidget);
-      expect(find.text("Mulai Berjalan (10 Detik)"), findsOneWidget);
-
-      // Tap button to start countdown
-      await tester.tap(find.text("Mulai Berjalan (10 Detik)"));
-      await tester.pump();
-
-      // Initial step shows 'Bersiap...'
-      expect(find.text("Bersiap..."), findsOneWidget);
-
-      // Advance 1s -> '3'
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text("3"), findsOneWidget);
-
-      // Advance 1s -> '2'
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text("2"), findsOneWidget);
-
-      // Advance 1s -> '1'
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text("1"), findsOneWidget);
-
-      // Advance 1s -> 'Mulai!'
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text("Mulai!"), findsOneWidget);
-
-      // Advance 1s -> Starts recording
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text("Sedang Merekam Langkah..."), findsOneWidget);
-
-      // Unmount to cleanly cancel active timers
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('Stage 3 renders camera button and gallery picker button', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Stage3VisualScreen(),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(find.text("Tahap 3: Visual & Sclera Scan"), findsOneWidget);
-      expect(find.text("Buka Kamera (Ambil Foto)"), findsOneWidget);
-      expect(find.text("📁 Pilih dari Galeri"), findsOneWidget);
-
-      await tester.pumpWidget(const SizedBox());
     });
 
     test('AIService fallback returns complete diagnosis when offline', () {
@@ -95,12 +68,12 @@ void main() {
     });
 
     testWidgets('ResultScreen renders successfully with default/fallback data', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: ResultScreen(),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(const DepressionDetectionApp());
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(WelcomeScreen));
+      Navigator.pushNamed(context, '/result');
+      await tester.pumpAndSettle();
 
       expect(find.byType(ResultScreen), findsOneWidget);
     });
