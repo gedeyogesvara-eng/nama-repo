@@ -64,8 +64,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceFirst("Exception: ", "").trim();
+        if (msg == "Error" || msg.isEmpty) {
+          msg = "Gagal mendaftar. Silakan periksa kembali data Anda.";
+        }
         _showSnackBar(
-          message: e.toString().replaceFirst("Exception: ", ""),
+          message: msg,
           isError: true,
         );
       }
@@ -96,8 +100,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceFirst("Exception: ", "").trim();
+        if (msg == "Error" || msg.isEmpty) {
+          msg = "Gagal mendaftar dengan Google. Silakan coba kembali.";
+        }
         _showSnackBar(
-          message: e.toString().replaceFirst("Exception: ", ""),
+          message: msg,
           isError: true,
         );
       }

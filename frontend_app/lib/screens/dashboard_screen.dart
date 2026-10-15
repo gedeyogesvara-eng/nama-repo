@@ -137,6 +137,48 @@ class DashboardScreen extends StatelessWidget {
                       },
                     ),
                   ),
+
+                  const SizedBox(width: 8),
+
+                  // Tombol Logout / Keluar Akun
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: NeoColors.borderBlack,
+                        width: 2.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: NeoColors.borderBlack,
+                          offset: Offset(3, 3),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      tooltip: "Keluar Akun",
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 20,
+                      ),
+                      onPressed: () async {
+                        await authService.signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/welcome',
+                            (route) => false,
+                          );
+                        }
+                      },
+                    ),
+                  ),
                 ],
               ),
 

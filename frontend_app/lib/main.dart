@@ -1,7 +1,10 @@
 // ignore_for_file: unused_element
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -11,15 +14,52 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/result_screen.dart';
+import 'screens/history_screen.dart';
 
-void main() {
+// JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
+// HAPUS TANDA // DI BAWAH INI:
+// import 'firebase_options.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi Firebase jika konfigurasi aktif, atau fallback otomatis ke mode mandiri
+  try {
+    const String firebaseApiKey = "GANTI_DENGAN_API_KEY_FIREBASE_ANDA";
+    final bool hasValidConfig = !firebaseApiKey.contains("GANTI_DENGAN") && firebaseApiKey.isNotEmpty;
+
+    if (hasValidConfig && Firebase.apps.isEmpty) {
+      if (kIsWeb) {
+        // Konfigurasi khusus saat dijalankan di Browser (Chrome/Edge)
+        await Firebase.initializeApp(
+          // JIKA SUDAH ADA firebase_options.dart, GANTI BLOK const FirebaseOptions(...)
+          // DI BAWAH INI MENJADI: options: DefaultFirebaseOptions.currentPlatform,
+          options: const FirebaseOptions(
+            apiKey: firebaseApiKey,
+            authDomain: "GANTI_DENGAN_PROJECT_ID.firebaseapp.com",
+            projectId: "GANTI_DENGAN_PROJECT_ID_ANDA",
+            storageBucket: "GANTI_DENGAN_PROJECT_ID.appspot.com",
+            messagingSenderId: "GANTI_DENGAN_SENDER_ID_ANDA",
+            appId: "GANTI_DENGAN_APP_ID_ANDA",
+          ),
+        );
+      } else {
+        // Konfigurasi saat dijalankan di Android / iOS
+        await Firebase.initializeApp();
+      }
+    }
+  } catch (e) {
+    debugPrint("Firebase init error: $e");
+  }
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+
   runApp(const DepressionDetectionApp());
 }
 
@@ -80,6 +120,12 @@ class DepressionDetectionApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/forgot_password': (context) => const ForgotPasswordScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/stage1': (context) => const Stage1MentalScreen(),
+        '/stage2': (context) => const Stage2PhysicalScreen(),
+        '/stage3': (context) => const Stage3VisualScreen(),
+        '/loading_scan': (context) => const LoadingScanScreen(),
+        '/result': (context) => const ResultScreen(),
+        '/history': (context) => const HistoryScreen(),
         '/prototype': (context) => const PrototypeRootScreen(),
       },
     );
@@ -295,7 +341,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primaryBlue : Colors.transparent,
+                    color:
+                        isSelected ? AppColors.primaryBlue : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isSelected
@@ -580,7 +627,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
           borderRadius: BorderRadius.circular(999),
           onTap: onPressed,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 20.0),
+            padding:
+                const EdgeInsets.symmetric(vertical: 14.0, horizontal: 20.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -689,10 +737,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 8),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.primaryBlue, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primaryBlue, width: 2),
                     ),
                     focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.primaryYellow, width: 2.5),
+                      borderSide: BorderSide(
+                          color: AppColors.primaryYellow, width: 2.5),
                     ),
                   ),
                 ),
@@ -718,10 +768,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 8),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.primaryBlue, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primaryBlue, width: 2),
                     ),
                     focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.primaryYellow, width: 2.5),
+                      borderSide: BorderSide(
+                          color: AppColors.primaryYellow, width: 2.5),
                     ),
                   ),
                 ),
@@ -803,7 +855,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               subtitleText: 'Multimodal Behavioral Skrining',
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
               child: Text(
                 'Untuk mendeteksi biomarker depresi dan fatigue secara akurat, sistem AI membutuhkan akses sensor temporal perangkat Anda:',
                 style: TextStyle(
@@ -1108,7 +1161,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
           right: 20,
           child: IconButton(
             tooltip: 'Keluar',
-            icon: const Icon(Icons.logout_rounded, color: AppColors.primaryBlue),
+            icon:
+                const Icon(Icons.logout_rounded, color: AppColors.primaryBlue),
             onPressed: () => _setScreen('splash'),
           ),
         ),
@@ -1217,19 +1271,22 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                             child: _drawingPoints.isEmpty
                                 ? Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Icon(
                                           Icons.gesture_rounded,
                                           size: 48,
-                                          color: Colors.white.withValues(alpha: 0.4),
+                                          color: Colors.white
+                                              .withValues(alpha: 0.4),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
                                           'Ekspresikan coretan bebas di sini',
                                           style: TextStyle(
                                             fontSize: 10,
-                                            color: Colors.white.withValues(alpha: 0.7),
+                                            color: Colors.white
+                                                .withValues(alpha: 0.7),
                                           ),
                                         ),
                                       ],
@@ -1277,7 +1334,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     height: 64,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.borderBlack, width: 2.5),
+                      border:
+                          Border.all(color: AppColors.borderBlack, width: 2.5),
                       boxShadow: const [
                         BoxShadow(
                           color: AppColors.borderBlack,
@@ -1329,7 +1387,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   // ==========================================
   Widget _buildStage2Screen() {
     final isComplete = _walkingSeconds >= 10;
-    final isRunning = _walkingTimer != null && _walkingTimer!.isActive && !isComplete;
+    final isRunning =
+        _walkingTimer != null && _walkingTimer!.isActive && !isComplete;
     final progress = (_walkingSeconds / 10).clamp(0.0, 1.0);
 
     return Column(
@@ -1490,7 +1549,9 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   onPressed: () => _setScreen('stage3'),
                 )
               : _buildNeoPillButton(
-                  text: isRunning ? 'Sedang Berjalan...' : 'Mulai Berjalan (10 Detik)',
+                  text: isRunning
+                      ? 'Sedang Berjalan...'
+                      : 'Mulai Berjalan (10 Detik)',
                   icon: Icons.play_arrow_rounded,
                   onPressed: isRunning ? null : _startWalkingSimulation,
                 ),
@@ -1561,10 +1622,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       right: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1575,10 +1638,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       right: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1589,7 +1654,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1606,10 +1672,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       right: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1620,10 +1688,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       right: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1634,7 +1704,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       bottom: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.08),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                       ),
                                     ),
                                   ),
@@ -1690,7 +1761,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     // Center Dashed Oval Shape
                     CustomPaint(
                       painter: DashedOvalPainter(
-                        color: _captureSuccess ? AppColors.green : AppColors.red,
+                        color:
+                            _captureSuccess ? AppColors.green : AppColors.red,
                         isSuccess: _captureSuccess,
                       ),
                       child: Container(
@@ -1970,7 +2042,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
+            padding:
+                const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
             child: Center(
               child: Text(
                 text,
@@ -2026,7 +2099,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFD1FAE5),
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.borderBlack, width: 3),
+                      border:
+                          Border.all(color: AppColors.borderBlack, width: 3),
                       boxShadow: const [
                         BoxShadow(
                           color: AppColors.borderBlack,
@@ -2142,9 +2216,12 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildBulletPoint('Pertahankan waktu tidur 7-8 jam per malam.'),
-                      _buildBulletPoint('Lakukan peregangan ringan setiap 90 menit bekerja.'),
-                      _buildBulletPoint('Pertahankan interaksi sosial yang sehat.'),
+                      _buildBulletPoint(
+                          'Pertahankan waktu tidur 7-8 jam per malam.'),
+                      _buildBulletPoint(
+                          'Lakukan peregangan ringan setiap 90 menit bekerja.'),
+                      _buildBulletPoint(
+                          'Pertahankan interaksi sosial yang sehat.'),
                     ],
                   ),
                 ),
@@ -2278,7 +2355,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.borderBlack, width: 2.5),
+                    border:
+                        Border.all(color: AppColors.borderBlack, width: 2.5),
                     boxShadow: const [
                       BoxShadow(
                         color: AppColors.borderBlack,
@@ -2413,8 +2491,9 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  decoration:
-                      isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+                  decoration: isChecked
+                      ? TextDecoration.lineThrough
+                      : TextDecoration.none,
                   color: isChecked ? Colors.grey.shade400 : Colors.black87,
                 ),
               ),
@@ -2501,7 +2580,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.borderBlack, width: 2.5),
+                    border:
+                        Border.all(color: AppColors.borderBlack, width: 2.5),
                     boxShadow: const [
                       BoxShadow(
                         color: AppColors.borderBlack,
@@ -2562,7 +2642,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
 
           // Bottom 2 Bold Triage Buttons
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
             child: Column(
               children: [
                 _buildNeoPillButton(
@@ -2608,9 +2689,15 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         'summary':
             'Respon saraf otonom prima. Irama gait stabil simetris dan mikrosleep visual nihil.',
         'details': {
-          'suara': {'score': '94%', 'desc': 'Prosodi vokal dinamis & ekspresif'},
+          'suara': {
+            'score': '94%',
+            'desc': 'Prosodi vokal dinamis & ekspresif'
+          },
           'gait': {'score': '91%', 'desc': 'Simetri irama langkah optimal'},
-          'visual': {'score': '18%', 'desc': 'Tegangan optik kornea sangat rendah'},
+          'visual': {
+            'score': '18%',
+            'desc': 'Tegangan optik kornea sangat rendah'
+          },
           'sketsa': {'score': '22%', 'desc': 'Pola goresan spontan & rileks'},
         },
         'tips':
@@ -2633,7 +2720,10 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         'details': {
           'suara': {'score': '62%', 'desc': 'Pitch vokal cenderung monoton'},
           'gait': {'score': '58%', 'desc': 'Langkah melambat & variatif'},
-          'visual': {'score': '74%', 'desc': 'Frekuensi kedip mata turun signifikan'},
+          'visual': {
+            'score': '74%',
+            'desc': 'Frekuensi kedip mata turun signifikan'
+          },
           'sketsa': {'score': '65%', 'desc': 'Kerapatan goresan garis padat'},
         },
         'tips':
@@ -2657,7 +2747,10 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
           'suara': {'score': '89%', 'desc': 'Variasi frekuensi vokal normal'},
           'gait': {'score': '87%', 'desc': 'Kecepatan jalan konstan & mantap'},
           'visual': {'score': '24%', 'desc': 'Refleks fokus kornea stabil'},
-          'sketsa': {'score': '30%', 'desc': 'Bentuk luwes tanpa penekanan tegang'},
+          'sketsa': {
+            'score': '30%',
+            'desc': 'Bentuk luwes tanpa penekanan tegang'
+          },
         },
         'tips':
             'Fokus kerja terarah. Luangkan peregangan ringan setiap 90 menit bekerja.',
@@ -2677,10 +2770,22 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         'summary':
             'Terdeteksi deselerasi motorik berat, tremor mikro, serta mikrosleep berulang.',
         'details': {
-          'suara': {'score': '38%', 'desc': 'Intonasi lemah & tempo sangat lambat'},
-          'gait': {'score': '44%', 'desc': 'Ketidakstabilan akselerasi langkah'},
-          'visual': {'score': '89%', 'desc': 'Kelelahan saraf penglihatan akut'},
-          'sketsa': {'score': '85%', 'desc': 'Pola garis kaku & bertekanan tajam'},
+          'suara': {
+            'score': '38%',
+            'desc': 'Intonasi lemah & tempo sangat lambat'
+          },
+          'gait': {
+            'score': '44%',
+            'desc': 'Ketidakstabilan akselerasi langkah'
+          },
+          'visual': {
+            'score': '89%',
+            'desc': 'Kelelahan saraf penglihatan akut'
+          },
+          'sketsa': {
+            'score': '85%',
+            'desc': 'Pola garis kaku & bertekanan tajam'
+          },
         },
         'tips':
             'Hentikan aktivitas segera, matikan notifikasi kerja, dan prioritaskan istirahat tidur.',
@@ -2710,7 +2815,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderBlack, width: 2),
+                        border:
+                            Border.all(color: AppColors.borderBlack, width: 2),
                         boxShadow: const [
                           BoxShadow(
                             color: AppColors.borderBlack,
@@ -2751,7 +2857,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.primaryYellow,
                   borderRadius: BorderRadius.circular(14),
@@ -2779,7 +2886,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         // Scrollable Body
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 6.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20.0, vertical: 6.0),
             children: [
               // 1. Stats Overview Banner
               _buildHistoryOverviewStats(dummyHistoryList),
@@ -2801,7 +2909,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   ),
                   child: const Column(
                     children: [
-                      Icon(Icons.search_off_rounded, size: 40, color: AppColors.secondaryGray),
+                      Icon(Icons.search_off_rounded,
+                          size: 40, color: AppColors.secondaryGray),
                       SizedBox(height: 8),
                       Text(
                         'Tidak ada riwayat pada kategori ini.',
@@ -2853,10 +2962,17 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatColItem('Total Sesi', '${list.length}', Icons.history_edu_rounded),
-          Container(width: 1.5, height: 38, color: AppColors.borderBlack.withValues(alpha: 0.15)),
+          _buildStatColItem(
+              'Total Sesi', '${list.length}', Icons.history_edu_rounded),
+          Container(
+              width: 1.5,
+              height: 38,
+              color: AppColors.borderBlack.withValues(alpha: 0.15)),
           _buildStatColItem('Rata-rata', '71 / 100', Icons.analytics_outlined),
-          Container(width: 1.5, height: 38, color: AppColors.borderBlack.withValues(alpha: 0.15)),
+          Container(
+              width: 1.5,
+              height: 38,
+              color: AppColors.borderBlack.withValues(alpha: 0.15)),
           _buildStatColItem('Terkini', 'Prima ✓', Icons.verified_user_outlined),
         ],
       ),
@@ -2919,7 +3035,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               borderRadius: BorderRadius.circular(20),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.primaryBlue : Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -2927,7 +3044,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.borderBlack,
-                      offset: isSelected ? const Offset(1, 1) : const Offset(2, 2),
+                      offset:
+                          isSelected ? const Offset(1, 1) : const Offset(2, 2),
                     ),
                   ],
                 ),
@@ -2977,7 +3095,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.secondaryGray),
+                  const Icon(Icons.calendar_today_rounded,
+                      size: 12, color: AppColors.secondaryGray),
                   const SizedBox(width: 5),
                   Text(
                     '${item['date']} • ${item['time']}',
@@ -2994,7 +3113,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F0EA),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.borderBlack.withValues(alpha: 0.25)),
+                  border: Border.all(
+                      color: AppColors.borderBlack.withValues(alpha: 0.25)),
                 ),
                 child: Text(
                   item['id'],
@@ -3038,7 +3158,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     ),
                     const SizedBox(height: 3),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: bgTint,
                         borderRadius: BorderRadius.circular(10),
@@ -3107,7 +3228,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     ),
                   ),
                   SizedBox(width: 6),
-                  Icon(Icons.arrow_forward_rounded, size: 15, color: AppColors.borderBlack),
+                  Icon(Icons.arrow_forward_rounded,
+                      size: 15, color: AppColors.borderBlack),
                 ],
               ),
             ),
@@ -3199,11 +3321,13 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: item['bgTint'],
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: item['accentColor'], width: 1.5),
+                          border: Border.all(
+                              color: item['accentColor'], width: 1.5),
                         ),
                         child: Text(
                           'Skor ${item['score']}/100',
@@ -3229,10 +3353,26 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  _buildSensorModalRow('1. Prosodi Vokal (Suara)', details['suara']['score'], details['suara']['desc'], Icons.mic_rounded),
-                  _buildSensorModalRow('2. Gait Tracker (Sensor Gerak)', details['gait']['score'], details['gait']['desc'], Icons.directions_walk_rounded),
-                  _buildSensorModalRow('3. Tegangan Visual (Kamera)', details['visual']['score'], details['visual']['desc'], Icons.remove_red_eye_rounded),
-                  _buildSensorModalRow('4. Coretan Mental (Canvas Doodle)', details['sketsa']['score'], details['sketsa']['desc'], Icons.draw_rounded),
+                  _buildSensorModalRow(
+                      '1. Prosodi Vokal (Suara)',
+                      details['suara']['score'],
+                      details['suara']['desc'],
+                      Icons.mic_rounded),
+                  _buildSensorModalRow(
+                      '2. Gait Tracker (Sensor Gerak)',
+                      details['gait']['score'],
+                      details['gait']['desc'],
+                      Icons.directions_walk_rounded),
+                  _buildSensorModalRow(
+                      '3. Tegangan Visual (Kamera)',
+                      details['visual']['score'],
+                      details['visual']['desc'],
+                      Icons.remove_red_eye_rounded),
+                  _buildSensorModalRow(
+                      '4. Coretan Mental (Canvas Doodle)',
+                      details['sketsa']['score'],
+                      details['sketsa']['desc'],
+                      Icons.draw_rounded),
 
                   const SizedBox(height: 16),
 
@@ -3243,14 +3383,16 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F0EA),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderBlack, width: 2),
+                      border:
+                          Border.all(color: AppColors.borderBlack, width: 2),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.lightbulb_outline_rounded, size: 16, color: AppColors.primaryBlue),
+                            Icon(Icons.lightbulb_outline_rounded,
+                                size: 16, color: AppColors.primaryBlue),
                             SizedBox(width: 6),
                             Text(
                               'REKOMENDASI AI',
@@ -3292,7 +3434,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
     );
   }
 
-  Widget _buildSensorModalRow(String title, String score, String desc, IconData icon) {
+  Widget _buildSensorModalRow(
+      String title, String score, String desc, IconData icon) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10.0),
       child: Container(
@@ -3300,7 +3443,8 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFFF9F9F7),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderBlack.withValues(alpha: 0.15)),
+          border:
+              Border.all(color: AppColors.borderBlack.withValues(alpha: 0.15)),
         ),
         child: Row(
           children: [

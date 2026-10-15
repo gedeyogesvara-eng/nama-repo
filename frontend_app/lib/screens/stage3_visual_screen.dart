@@ -133,22 +133,40 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
       _isCaptured = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      await Future.delayed(const Duration(milliseconds: 800));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Lanjut ke LoadingScanScreen membawa seluruh data Tahap 1, 2, dan 3
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LoadingScanScreen(
-          faceImagePath: capturedPath ?? '',
-          drawingImagePath: widget.drawingImagePath ?? '',
-          audioPath: widget.audioPath ?? '',
-          gaitData: widget.gaitData ?? 'gait_recorded',
+      // Lanjut ke LoadingScanScreen membawa seluruh data Tahap 1, 2, dan 3
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LoadingScanScreen(
+            faceImagePath: capturedPath ?? '',
+            drawingImagePath: widget.drawingImagePath ?? '',
+            audioPath: widget.audioPath ?? '',
+            gaitData: widget.gaitData ?? 'gait_recorded',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint("⚠️ Error navigasi Stage 3: $e");
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LoadingScanScreen(),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
   }
 
   @override
