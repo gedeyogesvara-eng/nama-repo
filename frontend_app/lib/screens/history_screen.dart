@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/backend_service.dart';
-<<<<<<< HEAD
-=======
 import '../services/history_service.dart';
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -39,32 +36,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _loadHistory();
-<<<<<<< HEAD
-  }
-
-  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
-  Future<void> _loadHistory() async {
-    final userId = authService.currentUserId;
-    if (userId == null) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Silakan login terlebih dahulu untuk melihat riwayat skrining.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final rows = await BackendService.fetchHistory(userId);
-      if (!mounted) return;
-      setState(() {
-        _history = rows.map(_mapSession).toList();
-        _isLoading = false;
-=======
     HistoryService.historyNotifier.addListener(_onHistoryUpdated);
   }
 
@@ -85,6 +56,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
+  /// dengan fallback ke penyimpanan lokal HistoryService (SharedPreferences)
   Future<void> _loadHistory() async {
     final userId = authService.currentUserId;
     if (userId != null) {
@@ -116,19 +89,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _history = list;
         _isLoading = false;
         _error = null;
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-<<<<<<< HEAD
-        _error = 'Tidak dapat memuat riwayat dari server. Pastikan backend Go (port 8081) dan MySQL menyala.';
-      });
-    }
-  }
-=======
-        _error = 'Tidak dapat memuat riwayat skrining.';
+        _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan MySQL menyala.';
       });
     }
   }
@@ -145,7 +111,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
     return Icons.warning_amber_rounded;
   }
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   /// Mengubah satu baris `screening_sessions` dari backend menjadi struktur kartu riwayat
   Map<String, dynamic> _mapSession(Map<String, dynamic> s) {
@@ -482,7 +447,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ],
               ),
-<<<<<<< HEAD
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -492,14 +456,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     fontWeight: FontWeight.w900,
                     color: NeoColors.borderBlack,
                   ),
-=======
-              child: Text(
-                '${_history.length} Sesi',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: NeoColors.borderBlack,
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
                 ),
               ),
             ),

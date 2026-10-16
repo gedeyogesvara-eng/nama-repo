@@ -109,11 +109,7 @@ func main() {
 		log.Fatalf("Gagal membuat direktori uploads: %v", err)
 	}
 
-<<<<<<< HEAD
-	// 2. Koneksi + migrasi otomatis MySQL XAMPP (default port 3307)
-=======
 	// 2. Koneksi + migrasi otomatis MySQL XAMPP (default port 3307 / 3306)
->>>>>>> 6f9930e77eaa98fc8f195f29fd195556e9705aec
 	if err := connectAndMigrate(); err != nil {
 		log.Fatalf("❌ Gagal menyiapkan database MySQL: %v", err)
 	}

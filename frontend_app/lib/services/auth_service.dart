@@ -10,12 +10,8 @@ import 'api_config.dart';
 /// - Register  : POST {baseUrl}/api/register -> tabel `users` (atau SharedPreferences lokal jika offline)
 /// - Login     : POST {baseUrl}/api/login (atau verifikasi SharedPreferences lokal jika offline)
 /// - Sesi      : user_id & full_name disimpan di memori + SharedPreferences
-<<<<<<< HEAD
-///               (localStorage di Web) sehingga bertahan saat halaman di-refresh.
+///               sehingga bertahan saat aplikasi di-restart atau halaman di-refresh (localStorage di Web).
 /// Firebase TIDAK lagi dipakai.
-=======
-///               sehingga bertahan saat aplikasi di-restart atau halaman di-refresh.
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 /// ============================================================================
 
 /// Model pengguna yang sedang login
@@ -28,32 +24,20 @@ class AppUser {
   final int recoveryScore;
   final String zombieStage;
 
-<<<<<<< HEAD
-=======
   String? get photoUrl => photoURL;
   String get uid => _uid ?? (userId > 0 ? userId.toString() : (email ?? '0'));
 
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   const AppUser({
     this.userId = 0,
     String? uid,
     this.displayName,
     this.email,
-<<<<<<< HEAD
-    this.recoveryScore = 40,
-    this.zombieStage = 'TIRED_ZOMBIE',
-  });
-
-  /// Alias kompatibilitas (id pengguna dalam bentuk String)
-  String get uid => userId.toString();
-=======
     String? photoURL,
     String? photoUrl,
     this.recoveryScore = 40,
     this.zombieStage = 'TIRED_ZOMBIE',
   })  : _uid = uid,
         photoURL = photoURL ?? photoUrl;
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     int asInt(dynamic v, int fallback) =>
@@ -85,31 +69,20 @@ class AppUser {
       };
 
   AppUser copyWith({
-<<<<<<< HEAD
-    String? displayName,
-    String? email,
-=======
     int? userId,
     String? uid,
     String? displayName,
     String? email,
     String? photoURL,
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     int? recoveryScore,
     String? zombieStage,
   }) =>
       AppUser(
-<<<<<<< HEAD
-        userId: userId,
-        displayName: displayName ?? this.displayName,
-        email: email ?? this.email,
-=======
         userId: userId ?? this.userId,
         uid: uid ?? this.uid,
         displayName: displayName ?? this.displayName,
         email: email ?? this.email,
         photoURL: photoURL ?? this.photoURL,
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
         recoveryScore: recoveryScore ?? this.recoveryScore,
         zombieStage: zombieStage ?? this.zombieStage,
       );
@@ -121,59 +94,51 @@ class Auth {
         _baseUrlOverride = baseUrl;
 
   static const String _sessionKey = 'restguard_session_user';
-<<<<<<< HEAD
-=======
   static const String _keyEmail = 'user_email';
   static const String _keyPassword = 'user_password';
   static const String _keyName = 'user_name';
   static const String _keyIsLoggedIn = 'is_logged_in';
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   http.Client _client;
   set client(http.Client client) => _client = client;
   final String? _baseUrlOverride;
-<<<<<<< HEAD
-=======
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
 
   AppUser? _currentUser;
   final StreamController<AppUser?> _authStateController =
       StreamController<AppUser?>.broadcast();
 
-  String get baseUrl => _baseUrlOverride ?? ApiConfig.baseUrl;
-
-  /// User yang sedang login (null jika belum login)
+  /// Pengguna yang sedang login saat ini (null jika belum login)
   AppUser? get currentUser => _currentUser;
 
-  /// ID pengguna di database MySQL (null jika belum login)
+  /// User ID integer (MySQL primary key `users.id`)
   int? get currentUserId => _currentUser?.userId;
 
-  /// Stream untuk memantau status login secara realtime
+  /// Stream perubahan status autentikasi
   Stream<AppUser?> get authStateChanges => _authStateController.stream;
 
-  String get _offlineMessage =>
-      'Tidak dapat terhubung ke server ($baseUrl). Pastikan backend Go berjalan di port 8081 dan MySQL aktif.';
+  /// URL dasar backend Go
+  String get baseUrl => _baseUrlOverride ?? ApiConfig.baseUrl;
+
+  static const String _offlineMessage =
+      'Tidak dapat terhubung ke backend Go. Pastikan server lokal berjalan di port 8081 dan MySQL aktif.';
 
   // --------------------------------------------------------------------------
-  // SESI
+  // SESI LOKAL
   // --------------------------------------------------------------------------
 
-  /// Memulihkan sesi login terakhir (dipanggil saat aplikasi start).
+  /// Pulihkan sesi login terakhir dari SharedPreferences saat aplikasi dibuka.
   Future<AppUser?> restoreSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_sessionKey);
       if (raw != null && raw.isNotEmpty) {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic>) {
-          final user = AppUser.fromJson(decoded);
-          if (user.userId > 0 || (user.email != null && user.email!.isNotEmpty)) {
-            _currentUser = user;
-            _authStateController.add(user);
-            await prefs.setBool(_keyIsLoggedIn, true);
-            return user;
-          }
+        final map = jsonDecode(raw);
+        if (map is Map<String, dynamic>) {
+          final user = AppUser.fromJson(map);
+          _currentUser = user;
+          _authStateController.add(user);
+          return user;
         }
       }
 
@@ -301,8 +266,7 @@ class Auth {
   // AKSI AUTENTIKASI
   // --------------------------------------------------------------------------
 
-<<<<<<< HEAD
-  /// a. Registrasi akun baru -> tersimpan di tabel `users` MySQL.
+  /// a. Registrasi akun baru -> tersimpan di tabel `users` MySQL (atau SharedPreferences lokal jika offline)
   /// [autoLogin]: Bila false, akun didaftarkan tanpa langsung mengaktifkan sesi login (user diarahkan ke login).
   Future<bool> registerWithEmail(
     String email,
@@ -312,89 +276,60 @@ class Auth {
   }) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
-=======
-  /// a. Registrasi akun baru (mendukung parameter (email, password, {name}) atau (name, email, password))
-  Future<bool> registerWithEmail(
-    String arg1,
-    String arg2, [
-    dynamic arg3,
-  ]) async {
-    String finalName;
-    String finalEmail;
-    String finalPassword;
-
-    if (arg3 is String) {
-      // Format (name, email, password)
-      finalName = arg1.trim();
-      finalEmail = arg2.trim();
-      finalPassword = arg3;
-    } else {
-      // Format (email, password, {name})
-      finalEmail = arg1.trim();
-      finalPassword = arg2;
-      finalName = (arg3 is Map && arg3['name'] != null)
-          ? arg3['name'].toString().trim()
-          : finalEmail.split('@').first;
-    }
-
-    if (finalEmail.isEmpty || !finalEmail.contains('@')) {
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       throw Exception('Format alamat email tidak valid.');
     }
-    if (finalPassword.length < 6) {
+    if (password.length < 6) {
       throw Exception('Kata sandi terlalu lemah. Gunakan minimal 6 karakter.');
     }
-    if (finalName.isEmpty) finalName = 'Pengguna';
+    final cleanName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : cleanEmail.split('@').first;
 
-<<<<<<< HEAD
-    final data = await _post('/api/register', {
-      'full_name': cleanName,
-      'email': cleanEmail,
-      'password': password,
-    });
+    // 1. Simpan secara persisten ke SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyName, cleanName);
+    await prefs.setString(_keyEmail, cleanEmail);
+    await prefs.setString(_keyPassword, password);
+    if (autoLogin) {
+      await prefs.setBool(_keyIsLoggedIn, true);
+    }
+
+    // 2. Kirim ke backend Go jika aktif
+    try {
+      final data = await _post('/api/register', {
+        'full_name': cleanName,
+        'email': cleanEmail,
+        'password': password,
+      });
+
+      if (autoLogin) {
+        final userJson = data['user'];
+        if (userJson is Map<String, dynamic>) {
+          final user = AppUser.fromJson(userJson);
+          if (user.userId > 0) {
+            await _setSession(user);
+            return true;
+          }
+        }
+      } else {
+        await _setSession(null);
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Backend registration note: $e');
+    }
 
     if (autoLogin) {
-      final userJson = data['user'];
-      if (userJson is! Map<String, dynamic>) {
-        throw Exception('Respons server tidak berisi data pengguna.');
-      }
-      final user = AppUser.fromJson(userJson);
-      if (user.userId <= 0) {
-        throw Exception('Respons server tidak berisi user_id yang valid.');
-      }
-      await _setSession(user);
+      final localUser = AppUser(
+        userId: 1,
+        uid: cleanEmail,
+        displayName: cleanName,
+        email: cleanEmail,
+      );
+      await _setSession(localUser);
     } else {
       await _setSession(null);
     }
-=======
-    // 1. Simpan secara persisten ke SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyName, finalName);
-    await prefs.setString(_keyEmail, finalEmail);
-    await prefs.setString(_keyPassword, finalPassword);
-    await prefs.setBool(_keyIsLoggedIn, true);
-
-    final localUser = AppUser(
-      userId: 1,
-      uid: finalEmail,
-      displayName: finalName,
-      email: finalEmail,
-    );
-    await _setSession(localUser);
-
-    // 2. Sinkronisasi ke backend Go jika aktif
-    try {
-      await _authenticate('/api/register', {
-        'full_name': finalName,
-        'email': finalEmail,
-        'password': finalPassword,
-      });
-      await prefs.setString(_keyName, finalName);
-    } catch (e) {
-      debugPrint('Backend registration sync note: $e');
-    }
-
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     return true;
   }
 
@@ -404,66 +339,6 @@ class Auth {
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
       throw Exception('Format alamat email tidak valid.');
     }
-<<<<<<< HEAD
-    return _authenticate('/api/login', {
-      'email': cleanEmail,
-      'password': password,
-    });
-  }
-
-  /// c. Autentikasi / Registrasi Google langsung ke MySQL melalui Go Backend (/api/auth/google)
-  Future<bool> loginWithGoogleAccount({
-    required String email,
-    String? name,
-    String? googleId,
-    bool setSession = true,
-  }) async {
-    final cleanEmail = email.trim();
-    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
-      throw Exception('Format alamat email tidak valid.');
-    }
-    final cleanName = (name != null && name.trim().isNotEmpty)
-        ? name.trim()
-        : cleanEmail.split('@').first;
-
-    final data = await _post('/api/auth/google', {
-      'email': cleanEmail,
-      'full_name': cleanName,
-      'google_id': googleId ?? '',
-    });
-
-    if (setSession) {
-      final userJson = data['user'];
-      if (userJson is! Map<String, dynamic>) {
-        throw Exception('Respons server tidak berisi data pengguna.');
-      }
-      final user = AppUser.fromJson(userJson);
-      if (user.userId <= 0) {
-        throw Exception('Respons server tidak berisi user_id yang valid.');
-      }
-      await _setSession(user);
-    } else {
-      await _setSession(null);
-    }
-    return true;
-  }
-
-  /// "Masuk dengan Google" default / fallback demo
-  Future<bool> loginWithGoogle() async {
-    try {
-      return await loginWithGoogleAccount(
-        email: 'bagas.google@gmail.com',
-        name: 'Bagas Pratama Google',
-        googleId: 'google-demo-123',
-        setSession: true,
-      );
-    } catch (_) {
-      return _authenticate('/api/login/google-demo', {});
-    }
-  }
-
-  /// d. Permintaan reset kata sandi (backend memvalidasi & mencatat permintaan)
-=======
     if (password.isEmpty) {
       throw Exception('Email dan kata sandi wajib diisi.');
     }
@@ -500,38 +375,95 @@ class Auth {
       return true;
     }
 
-    // 2. Jika tidak ada di SharedPreferences lokal, coba autentikasi ke backend Go
+    // 2. Coba autentikasi ke backend Go
     try {
       return await _authenticate('/api/login', {
         'email': cleanEmail,
         'password': password,
       });
     } catch (e) {
-      debugPrint('Backend login gagal: $e.');
+      debugPrint('Backend login note: $e');
+      throw Exception('Email atau Password salah');
     }
-
-    throw Exception('Email atau Password salah');
   }
 
-  /// c. "Masuk dengan Google"
+  /// c. Autentikasi / Registrasi Google langsung ke MySQL melalui Go Backend (/api/auth/google)
+  Future<bool> loginWithGoogleAccount({
+    required String email,
+    String? name,
+    String? googleId,
+    bool setSession = true,
+  }) async {
+    final cleanEmail = email.trim();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      throw Exception('Format alamat email tidak valid.');
+    }
+    final cleanName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : cleanEmail.split('@').first;
+
+    try {
+      final data = await _post('/api/auth/google', {
+        'email': cleanEmail,
+        'full_name': cleanName,
+        'google_id': googleId ?? '',
+      });
+
+      if (setSession) {
+        final userJson = data['user'];
+        if (userJson is Map<String, dynamic>) {
+          final user = AppUser.fromJson(userJson);
+          if (user.userId > 0) {
+            await _setSession(user);
+            return true;
+          }
+        }
+      } else {
+        await _setSession(null);
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Google login via backend note: $e');
+    }
+
+    if (setSession) {
+      final localUser = AppUser(
+        userId: 2,
+        uid: googleId ?? cleanEmail,
+        displayName: cleanName,
+        email: cleanEmail,
+      );
+      await _setSession(localUser);
+    }
+    return true;
+  }
+
+  /// "Masuk dengan Google" default / fallback demo
   Future<bool> loginWithGoogle() async {
     try {
       return await _authenticate('/api/login/google-demo', {});
-    } catch (e) {
-      debugPrint('Google login via backend gagal: $e. Menggunakan akun demo lokal.');
-      const demoUser = AppUser(
-        userId: 2,
-        uid: 'google_user_demo_99',
-        displayName: 'Maulana (Google User)',
-        email: 'maul.google@gmail.com',
-      );
-      await _setSession(demoUser);
-      return true;
+    } catch (_) {
+      try {
+        return await loginWithGoogleAccount(
+          email: 'maul.google@gmail.com',
+          name: 'Maulana (Google User)',
+          googleId: 'google-demo-123',
+          setSession: true,
+        );
+      } catch (e) {
+        const demoUser = AppUser(
+          userId: 2,
+          uid: 'google_user_demo_99',
+          displayName: 'Maulana (Google User)',
+          email: 'maul.google@gmail.com',
+        );
+        await _setSession(demoUser);
+        return true;
+      }
     }
   }
 
   /// d. Permintaan reset kata sandi
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   Future<bool> resetPassword(String email) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
@@ -545,7 +477,6 @@ class Auth {
     return true;
   }
 
-<<<<<<< HEAD
   /// Memperbarui nama lengkap pengguna ke backend Go / MySQL dan sesi lokal
   Future<bool> updateProfileName(String newName) async {
     final id = currentUserId;
@@ -586,13 +517,9 @@ class Auth {
     return false;
   }
 
-=======
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   /// Logout dari sesi saat ini
   Future<void> signOut([BuildContext? context]) async {
     await _setSession(null);
-<<<<<<< HEAD
-=======
     final navContext = context ?? navigatorKey.currentContext;
     if (navContext != null && navContext.mounted) {
       Navigator.of(navContext).pushNamedAndRemoveUntil(
@@ -600,7 +527,6 @@ class Auth {
         (route) => false,
       );
     }
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   }
 
   /// Alias logout

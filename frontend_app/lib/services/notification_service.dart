@@ -1,24 +1,31 @@
 // ignore_for_file: prefer_const_constructors
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-/// Service untuk menangani pengiriman dan pencatatan riwayat pengingat notifikasi lokal.
+/// Service untuk menangani inisialisasi, pengiriman, dan penjadwalan notifikasi lokal.
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
   static const String _keyNotificationHistory = 'notification_history_list';
   bool _isInitialized = false;
 
-  /// Inisialisasi service notifikasi
+  bool get _isTestEnv =>
+      !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// 1. Inisialisasi pengaturan Android dengan ikon bawaan @mipmap/ic_launcher
   Future<void> init() async {
     if (_isInitialized) return;
-<<<<<<< HEAD
-    _isInitialized = true;
-    debugPrint("✅ [NotificationService] Berhasil diinisialisasi.");
-=======
 
     if (_isTestEnv) {
       _isInitialized = true;
@@ -70,33 +77,27 @@ class NotificationService {
     } catch (e) {
       debugPrint("⚠️ [NotificationService] Gagal inisialisasi: $e");
     }
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
   }
 
-  /// Menampilkan / mencatat notifikasi peringatan zombi
+  /// Menampilkan / mencatat notifikasi peringatan zombi (format fleksibel)
   Future<void> showZombieWarning({
     required String title,
     required String body,
     String? payload,
   }) async {
     debugPrint("🚨 [NotificationService] $title: $body");
-    await _saveToHistory(title: title, body: body, type: 'warning');
+    await addNotificationToHistory(title: title, body: body, type: 'warning');
   }
 
-  /// Kompatibilitas untuk history_service
+  /// 2. Notifikasi Darurat ketika pengguna mendapatkan hasil diagnosis buruk (Zombie/Burnout Akut)
   Future<void> showZombieWarningNotification({
     String? title,
     String? body,
     String? customBody,
     String? scoreText,
   }) async {
-<<<<<<< HEAD
-    await showZombieWarning(
-      title: title ?? 'Peringatan Zombie/Burnout',
-      body: customBody ?? body ?? 'Kondisi kesehatan mental terdeteksi menurun.',
-=======
-    const String title = "⚠️ Peringatan Gejala Zombie/Burnout terdeteksi!";
-    final String body = customBody ??
+    final effectiveTitle = title ?? "⚠️ Peringatan Gejala Zombie/Burnout terdeteksi!";
+    final effectiveBody = customBody ?? body ??
         "Hasil analisis multimodal mendeteksi kelelahan saraf akut & deselerasi motorik. Segera hentikan aktivitas dan ambil waktu istirahat!";
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -125,8 +126,8 @@ class NotificationService {
       try {
         await _notificationsPlugin.show(
           id: 999,
-          title: title,
-          body: body,
+          title: effectiveTitle,
+          body: effectiveBody,
           notificationDetails: platformDetails,
           payload: 'zombie_warning_alert',
         );
@@ -138,14 +139,13 @@ class NotificationService {
 
     // Simpan ke riwayat state notifikasi
     await addNotificationToHistory(
-      title: title,
-      body: body,
+      title: effectiveTitle,
+      body: effectiveBody,
       type: 'warning',
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     );
   }
 
-  /// Menjadwalkan pengingat harian
+  /// Menjadwalkan pengingat harian pada jam & menit tertentu
   Future<void> scheduleDailyReminder({
     required int hour,
     required int minute,
@@ -154,18 +154,17 @@ class NotificationService {
     String type = 'scheduled',
   }) async {
     debugPrint("📅 [NotificationService] Pengingat dijadwalkan pada jam $hour:$minute - $title");
-    await _saveToHistory(title: title, body: body, type: type);
+    await addNotificationToHistory(title: title, body: body, type: type);
   }
 
-<<<<<<< HEAD
-  /// Kompatibilitas untuk history_service
-  Future<void> scheduleNextDayReminder() async {
-    await scheduleDailyReminder(
-      hour: 19,
-      minute: 0,
-      title: 'Waktunya Skrining Rutin',
-      body: 'Cek kondisi energi dan pemulihan tubuh Anda malam ini.',
-=======
+  /// 3. Menjadwalkan notifikasi tepat 24 jam setelah skrining terakhir dilakukan
+  Future<void> scheduleNextDayReminder({
+    String? customBody,
+  }) async {
+    const String title = "⏰ Waktunya skrining hari ini!";
+    final String body = customBody ??
+        "Sudah 24 jam sejak skrining terakhir. Luangkan waktu 1 menit untuk cek kondisi mental & fisik Anda.";
+
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'next_day_reminder_channel',
       'Pengingat Skrining 24 Jam',
@@ -211,62 +210,70 @@ class NotificationService {
     await addNotificationToHistory(
       title: title,
       body: "Pengingat aktif (24 Jam): $body",
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
       type: 'reminder',
     );
   }
 
-  /// Membaca riwayat notifikasi dari SharedPreferences
+  /// Mengambil daftar riwayat notifikasi dari state lokal SharedPreferences
   Future<List<Map<String, dynamic>>> getNotificationHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final List<String> rawList = prefs.getStringList(_keyNotificationHistory) ?? [];
-      return rawList.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+      final String? jsonStr = prefs.getString(_keyNotificationHistory);
+      if (jsonStr == null || jsonStr.trim().isEmpty) {
+        return [];
+      }
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
     } catch (e) {
       debugPrint("⚠️ [NotificationService] Gagal membaca riwayat notifikasi: $e");
-      return [];
     }
+    return [];
   }
 
-  /// Menghapus seluruh riwayat notifikasi
-  Future<void> clearHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyNotificationHistory);
-    } catch (_) {}
-  }
-
-  /// Kompatibilitas alias untuk dashboard_notification_history_test
-  Future<void> clearNotificationHistory() => clearHistory();
-
+  /// Menambahkan notifikasi baru ke dalam riwayat SharedPreferences
   Future<void> addNotificationToHistory({
     required String title,
     required String body,
-    String type = 'info',
-  }) =>
-      _saveToHistory(title: title, body: body, type: type);
-
-  Future<void> _saveToHistory({
-    required String title,
-    required String body,
-    required String type,
+    required String type, // 'warning' | 'reminder' | 'info'
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final List<String> current = prefs.getStringList(_keyNotificationHistory) ?? [];
-      final newItem = jsonEncode({
+      final list = await getNotificationHistory();
+      final now = DateTime.now();
+      final formattedTime =
+          "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} WIB";
+
+      final newEntry = {
+        'id': 'NOTIF-${DateTime.now().millisecondsSinceEpoch}',
         'title': title,
         'body': body,
         'type': type,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      current.insert(0, newItem);
-      if (current.length > 50) current.removeLast();
-      await prefs.setStringList(_keyNotificationHistory, current);
+        'time': formattedTime,
+        'timestamp': now.toIso8601String(),
+        'is_read': false,
+      };
+
+      // Tambahkan di urutan paling atas (terbaru)
+      list.insert(0, newEntry);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyNotificationHistory, jsonEncode(list));
     } catch (e) {
       debugPrint("⚠️ [NotificationService] Gagal menyimpan notifikasi: $e");
     }
   }
+
+  /// Menghapus seluruh riwayat notifikasi
+  Future<void> clearNotificationHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyNotificationHistory);
+  }
+
+  /// Alias kompatibilitas
+  Future<void> clearHistory() => clearNotificationHistory();
 }
 
 final notificationService = NotificationService();

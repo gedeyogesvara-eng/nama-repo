@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_app/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -49,9 +50,6 @@ void main() {
     });
   });
 
-<<<<<<< HEAD
-  group('AuthService Tests', () {
-=======
   group('AuthService with SharedPreferences Simulation', () {
     test('1. checkLoginStatus returns false initially', () async {
       final isLoggedIn = await authService.checkLoginStatus();
@@ -61,9 +59,9 @@ void main() {
 
     test('2. registerWithEmail saves user and sets is_logged_in to true', () async {
       final result = await authService.registerWithEmail(
-        'Budi Pratama',
         'budi@example.com',
         'password123',
+        name: 'Budi Pratama',
       );
 
       expect(result, isTrue);
@@ -145,7 +143,6 @@ void main() {
   });
 
   group('AuthService Demo & Integration Tests', () {
->>>>>>> db2c97a0d2c07050246713beb2ec9a3f1bd32ba9
     test('Registrasi berhasil menyimpan profil pengguna maul', () async {
       final success = await authService.registerWithEmail(
         'maul@gmail.com',
