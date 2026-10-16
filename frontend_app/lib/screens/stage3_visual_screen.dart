@@ -3,10 +3,11 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../theme/neo_colors.dart';
-import '../widgets/neo_button.dart';
 import 'loading_scan_screen.dart';
 
+/// Layar Skrining Tahap 3: Foto Mata (Visual / Sklera)
+/// Desain 'Modern Clean' dengan Deep Blue, sudut lengkung 32, bayangan halus,
+/// dan kompatibilitas penuh dengan Dark Mode.
 class Stage3VisualScreen extends StatefulWidget {
   /// Gambar coretan (PNG) dari Tahap 1
   final Uint8List? drawingBytes;
@@ -29,6 +30,8 @@ class Stage3VisualScreen extends StatefulWidget {
 }
 
 class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
+  static const Color primaryBlue = Color(0xFF314BB5);
+
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
 
@@ -41,10 +44,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
   void initState() {
     super.initState();
 
-    // Inisialisasi kamera secara asinkron
     availableCameras().then((cameras) {
       if (cameras.isNotEmpty) {
-        // Utamakan kamera depan jika ada, fallback ke kamera pertama
         final camera = cameras.firstWhere(
           (c) => c.lensDirection == CameraLensDirection.front,
           orElse: () => cameras.first,
@@ -71,8 +72,6 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     super.dispose();
   }
 
-  /// Mengambil foto sklera / mata langsung menggunakan kamera.
-  /// Foto dibaca sebagai bytes (Web-safe); jika kamera tidak tersedia, bytes null -> AIService memakai JPEG placeholder.
   Future<void> _simulateAutoCapture() async {
     if (_isProcessing) return;
 
@@ -104,11 +103,10 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     });
 
     try {
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 700));
 
       if (!mounted) return;
 
-      // Lanjut ke LoadingScanScreen membawa seluruh data Tahap 1, 2, dan 3
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -139,7 +137,6 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
     }
   }
 
-  /// Mengambil foto sklera / mata dari Galeri HP
   Future<void> pickImageFromGallery() async {
     if (_isProcessing) return;
 
@@ -150,7 +147,6 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
       );
 
       if (pickedFile == null) {
-        // User membatalkan pemilihan foto
         return;
       }
 
@@ -173,26 +169,23 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                 Expanded(
                   child: Text(
                     "Foto dari galeri berhasil dipilih! Melanjutkan...",
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),
               ],
             ),
-            backgroundColor: NeoColors.greenDark,
+            backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: NeoColors.borderBlack, width: 2),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
 
-      await Future.delayed(const Duration(milliseconds: 700));
+      await Future.delayed(const Duration(milliseconds: 600));
 
       if (!mounted) return;
 
-      // Lanjut ke LoadingScanScreen dengan gambar yang sama dari galeri
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -211,10 +204,12 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
           SnackBar(
             content: Text(
               "Gagal memilih foto: $e",
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
             backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
@@ -229,54 +224,108 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: NeoColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: NeoColors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Tahap 3: Visual & Sclera Scan",
-          style: TextStyle(
-            color: NeoColors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12.0),
+          child: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: isDark ? Colors.white : primaryBlue,
+                size: 18,
+              ),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.remove_red_eye_rounded, size: 16, color: primaryBlue),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Tahap 3: Foto Mata",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.titleMedium?.copyWith(
+                  color: isDark ? Colors.white : primaryBlue,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 10.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Guidance banner
+              // Guidance banner - Modern Clean Card
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: NeoColors.borderBlack, width: 2),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.remove_red_eye_outlined,
-                      color: NeoColors.black,
-                      size: 20,
+                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
-                    SizedBox(width: 8),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: primaryBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.remove_red_eye_outlined,
+                        color: primaryBlue,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        "Posisikan wajah & sklera mata di dalam oval. Tahan sejenak.",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: NeoColors.black,
+                        "Tatap layar dan ambil foto matamu",
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
                       ),
                     ),
@@ -286,26 +335,22 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
               const SizedBox(height: 16),
 
-              // VIEWPORT CONTAINER: LIVE CAMERA PREVIEW DI BELAKANG DESAIN OVERLAY
+              // VIEWPORT CONTAINER: LIVE CAMERA PREVIEW DENGAN SUDUT 32 DAN SHADOW HALUS
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A), // Dark slate camera background
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: NeoColors.borderBlack,
-                      width: 3.5,
-                    ),
-                    boxShadow: const [
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
                       BoxShadow(
-                        color: NeoColors.borderBlack,
-                        offset: Offset(6, 6),
-                        blurRadius: 0,
+                        color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                        blurRadius: 32,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(32),
                     child: Stack(
                       alignment: Alignment.center,
                       fit: StackFit.expand,
@@ -314,22 +359,17 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                         FutureBuilder<void>(
                           future: _initializeControllerFuture,
                           builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                    ConnectionState.done &&
+                            if (snapshot.connectionState == ConnectionState.done &&
                                 _controller != null &&
                                 _controller!.value.isInitialized) {
                               return ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(32),
                                 child: SizedBox.expand(
                                   child: FittedBox(
                                     fit: BoxFit.cover,
                                     child: SizedBox(
-                                      width: _controller!
-                                              .value.previewSize?.width ??
-                                          400,
-                                      height: _controller!
-                                              .value.previewSize?.height ??
-                                          300,
+                                      width: _controller!.value.previewSize?.width ?? 400,
+                                      height: _controller!.value.previewSize?.height ?? 300,
                                       child: CameraPreview(_controller!),
                                     ),
                                   ),
@@ -355,16 +395,16 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     CircularProgressIndicator(
-                                      color: NeoColors.primaryYellow,
+                                      color: primaryBlue,
                                       strokeWidth: 3,
                                     ),
-                                    SizedBox(height: 12),
+                                    SizedBox(height: 14),
                                     Text(
                                       "Menyalakan Live Camera...",
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ],
@@ -374,20 +414,21 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           },
                         ),
 
-                        // 1b. Tampilkan preview foto jika dipilih dari galeri / kamera
+                        // Preview foto yang tertangkap
                         if (_capturedFaceBytes != null)
                           Positioned.fill(
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(32),
                               child: Image.memory(
                                 _capturedFaceBytes!,
                                 fit: BoxFit.cover,
                               ),
                             ),
                           ),
-                        // 2. Soft Dark Vignette Overlay
+
+                        // Soft Dark Vignette Overlay
                         Container(
-                          color: Colors.black.withValues(alpha: 0.15),
+                          color: Colors.black.withValues(alpha: 0.12),
                         ),
 
                         // Camera Grid Guides
@@ -395,11 +436,11 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             Divider(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: Colors.white.withValues(alpha: 0.08),
                               thickness: 1,
                             ),
                             Divider(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: Colors.white.withValues(alpha: 0.08),
                               thickness: 1,
                             ),
                           ],
@@ -408,34 +449,31 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             VerticalDivider(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: Colors.white.withValues(alpha: 0.08),
                               thickness: 1,
                             ),
                             VerticalDivider(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: Colors.white.withValues(alpha: 0.08),
                               thickness: 1,
                             ),
                           ],
                         ),
 
-                        // 3. Live Eye-Tracking Header Badge (TEPAT DI ATAS CameraPreview)
+                        // Header Live Badge
                         Positioned(
-                          top: 14,
-                          left: 16,
-                          right: 16,
+                          top: 16,
+                          left: 18,
+                          right: 18,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
                                   color: _isCaptured
-                                      ? NeoColors.greenDark
-                                      : NeoColors.redDark,
-                                  borderRadius: BorderRadius.circular(8),
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Row(
                                   children: [
@@ -445,32 +483,26 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      _isCaptured
-                                          ? "BIOMARKER TERKUNCI"
-                                          : "Live Eye-Tracking",
+                                      _isCaptured ? "FOTO DIAMBIL" : "Kamera Aktif",
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 0.6,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.4,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.18),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
-                                  _controller != null &&
-                                          _controller!.value.isInitialized
-                                      ? "CAMERA LIVE"
+                                  _controller != null && _controller!.value.isInitialized
+                                      ? "LIVE VIEW"
                                       : "MEMUAT...",
                                   style: const TextStyle(
                                     color: Colors.white,
@@ -483,12 +515,10 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           ),
                         ),
 
-                        // 4. Dashed Oval Face Guide Frame (Putus-putus Merah TEPAT DI ATAS CameraPreview)
+                        // Dashed Oval Face Guide Frame
                         CustomPaint(
                           painter: DashedOvalPainter(
-                            color: _isCaptured
-                                ? NeoColors.green
-                                : NeoColors.redDark,
+                            color: _isCaptured ? const Color(0xFF10B981) : Colors.white.withValues(alpha: 0.8),
                             isSuccess: _isCaptured,
                           ),
                           child: SizedBox(
@@ -498,65 +528,31 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Crosshair Pusat
-                                  SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Container(
-                                          width: 2,
-                                          height: 28,
-                                          color: _isCaptured
-                                              ? NeoColors.green
-                                              : NeoColors.redDark
-                                                  .withValues(alpha: 0.8),
-                                        ),
-                                        Container(
-                                          width: 28,
-                                          height: 2,
-                                          color: _isCaptured
-                                              ? NeoColors.green
-                                              : NeoColors.redDark
-                                                  .withValues(alpha: 0.8),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
                                   Icon(
                                     _isCaptured
                                         ? Icons.check_circle_outline_rounded
                                         : Icons.face_retouching_natural_rounded,
                                     size: 46,
                                     color: _isCaptured
-                                        ? NeoColors.green
-                                        : Colors.white.withValues(alpha: 0.65),
+                                        ? const Color(0xFF10B981)
+                                        : Colors.white.withValues(alpha: 0.75),
                                   ),
                                   const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                     decoration: BoxDecoration(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.65),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
-                                      _isCaptured
-                                          ? "Frame Terkunci!\nMengambil Foto..."
-                                          : "Posisikan Wajah & Sklera",
+                                      _isCaptured ? "Foto Berhasil Diambil!" : "Arahkan Matamu ke Sini",
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: _isCaptured
-                                            ? NeoColors.greenLight
-                                            : Colors.white
-                                                .withValues(alpha: 0.9),
+                                            ? const Color(0xFF34D399)
+                                            : Colors.white.withValues(alpha: 0.95),
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
@@ -566,7 +562,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                           ),
                         ),
 
-                        // 5. Capture Flash simulation
+                        // Capture Flash animation
                         if (_isCaptured)
                           Positioned.fill(
                             child: AnimatedOpacity(
@@ -575,37 +571,6 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                               child: Container(color: Colors.white),
                             ),
                           ),
-
-                        // 6. Bottom Facial Landmarks indicator
-                        Positioned(
-                          bottom: 14,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.75),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.25),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              _isCaptured
-                                  ? "Micro-Expression Detected: 468 Landmarks"
-                                  : "Deteksi Biometrik: Siap Mengunci",
-                              style: TextStyle(
-                                color: _isCaptured
-                                    ? NeoColors.greenLight
-                                    : Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -614,31 +579,58 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
 
               const SizedBox(height: 16),
 
-              // Tombol Utama: Buka Kamera / Ambil Foto
-              NeoButton(
-                text: _isCaptured
-                    ? "✓ Memproses Multimodal Data..."
-                    : "Buka Kamera (Ambil Foto)",
-                icon: _isCaptured ? Icons.check : Icons.camera_rounded,
-                backgroundColor:
-                    _isCaptured ? NeoColors.greenDark : NeoColors.primaryBlue,
-                textColor: NeoColors.white,
-                borderRadius: 28,
-                height: 54,
-                onPressed: _isCaptured || _isProcessing ? null : _simulateAutoCapture,
+              // Tombol Utama: Ambil Foto Mata (Modern Clean BorderRadius 32)
+              SizedBox(
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: _isCaptured || _isProcessing ? null : _simulateAutoCapture,
+                  icon: Icon(
+                    _isCaptured ? Icons.check_rounded : Icons.camera_alt_rounded,
+                    size: 20,
+                  ),
+                  label: Text(
+                    _isCaptured ? "Menyimpan Foto..." : "Ambil Foto Mata",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isCaptured ? const Color(0xFF10B981) : primaryBlue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    shadowColor: primaryBlue.withValues(alpha: 0.35),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 10),
 
-              // Tombol Sekunder: Pilih dari Galeri
-              NeoButton(
-                text: "📁 Pilih dari Galeri",
-                icon: Icons.photo_library_rounded,
-                backgroundColor: NeoColors.white,
-                textColor: NeoColors.black,
-                borderRadius: 28,
+              // Tombol Sekunder: Pilih dari Galeri (Modern Clean)
+              SizedBox(
                 height: 50,
-                onPressed: _isCaptured || _isProcessing ? null : pickImageFromGallery,
+                child: OutlinedButton.icon(
+                  onPressed: _isCaptured || _isProcessing ? null : pickImageFromGallery,
+                  icon: const Icon(Icons.photo_library_rounded, size: 18),
+                  label: const Text(
+                    "📁 Pilih dari Galeri",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? Colors.white : const Color(0xFF1E293B),
+                    backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    side: BorderSide(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 8),
@@ -650,7 +642,6 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
   }
 }
 
-/// Custom Painter untuk garis oval putus-putus (Dashed Oval)
 class DashedOvalPainter extends CustomPainter {
   final Color color;
   final bool isSuccess;
@@ -661,7 +652,7 @@ class DashedOvalPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 3.5
+      ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke;
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
@@ -674,11 +665,10 @@ class DashedOvalPainter extends CustomPainter {
       canvas.drawOval(rect, fillPaint);
     }
 
-    // Gambar dashed path keliling oval
     for (final metric in path.computeMetrics()) {
       double distance = 0.0;
-      const dashLength = 10.0;
-      const dashSpace = 8.0;
+      const dashLength = 8.0;
+      const dashSpace = 6.0;
 
       while (distance < metric.length) {
         final nextDistance = distance + dashLength;

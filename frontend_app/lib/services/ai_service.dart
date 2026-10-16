@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import 'auth_service.dart';
 import 'history_service.dart';
+import 'backend_service.dart';
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend Go (Gin) yang
 /// meneruskan data ke server AI Python dan menyimpan hasilnya ke MySQL.
@@ -121,6 +123,9 @@ class AIService {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is Map<String, dynamic>) {
           final normalized = normalizeResponse(decoded);
+          if (decoded['saved'] != true) {
+            await postDiagnosisToBackend(normalized, userId: userId, client: httpClient);
+          }
           await HistoryService.addDiagnosisFromApi(normalized);
           return normalized;
         }
@@ -129,15 +134,39 @@ class AIService {
 
       debugPrint('⚠️ Backend error [${response.statusCode}]. Menggunakan fallback.');
       final fallback = getFallbackDetectionData();
+      await postDiagnosisToBackend(fallback, userId: userId, client: httpClient);
       await HistoryService.addDiagnosisFromApi(fallback);
       return fallback;
     } catch (e) {
       debugPrint('⚠️ [AIService] Backend tidak terjangkau: $e. Mengaktifkan diagnosis fallback.');
       final fallback = getFallbackDetectionData();
+      await postDiagnosisToBackend(fallback, userId: userId);
       await HistoryService.addDiagnosisFromApi(fallback);
       return fallback;
     } finally {
       if (client == null) httpClient.close();
+    }
+  }
+
+  /// Mengirim hasil diagnosis skrining ke Supabase (tabel `screening_history`)
+  /// menggunakan implementasi `Supabase.instance.client.from('screening_history').insert(payload)`.
+  /// Tidak lagi melakukan HTTP POST ke localhost sehingga bebas dari error 'backend timeout'.
+  static Future<bool> postDiagnosisToBackend(
+    Map<String, dynamic> diagnosisData, {
+    int? userId,
+    http.Client? client,
+  }) async {
+    final effectiveUserId = userId ?? authService.currentUserId ?? 1;
+    try {
+      final success = await BackendService.insertScreeningHistory(
+        diagnosisData,
+        userId: effectiveUserId,
+        client: client,
+      );
+      return success;
+    } catch (e) {
+      debugPrint('⚠️ [AIService] Gagal menyimpan riwayat diagnosis ke Supabase: $e');
+      return false;
     }
   }
 

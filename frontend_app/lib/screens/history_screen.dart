@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/backend_service.dart';
 import '../services/history_service.dart';
-import '../theme/neo_colors.dart';
-import '../widgets/neo_button.dart';
-import '../widgets/neo_card.dart';
 
+/// Layar Riwayat Skrining (Modern Clean)
+/// Menampilkan rekapitulasi riwayat skrining dari MySQL (via Go backend)
+/// dengan kartu melengkung 28-32, shadow transparan halus, Deep Blue (#314BB5),
+/// dan kompatibel penuh dengan Dark Mode.
 class HistoryScreen extends StatefulWidget {
   final VoidCallback? onBackToDashboard;
   final VoidCallback? onStartNewScreening;
@@ -21,16 +21,14 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  static const Color primaryBlue = Color(0xFF314BB5);
+  static const Color redCrit = Color(0xFFEF4444);
+
   String _selectedFilter = 'all'; // 'all', 'healthy', 'moderate', 'extreme'
 
   List<Map<String, dynamic>> _history = [];
   bool _isLoading = true;
   String? _error;
-
-  static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-  ];
 
   @override
   void initState() {
@@ -56,34 +54,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
-  /// dengan fallback ke penyimpanan lokal HistoryService (SharedPreferences)
   Future<void> _loadHistory() async {
     final userId = authService.currentUserId;
-    if (userId != null) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
-      try {
-        final rows = await BackendService.fetchHistory(userId);
-        if (rows.isNotEmpty) {
-          if (!mounted) return;
-          setState(() {
-            _history = rows.map(_mapSession).toList();
-            _isLoading = false;
-          });
-          return;
-        }
-      } catch (e) {
-        debugPrint('Gagal memuat riwayat dari server: $e');
-      }
-    }
-
-    // Fallback ke penyimpanan lokal HistoryService (SharedPreferences)
     try {
-      final list = await HistoryService.getHistoryList();
+      final list = await HistoryService.getHistoryList(userId: userId);
       if (!mounted) return;
       setState(() {
         _history = list;
@@ -97,115 +76,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan MySQL menyala.';
       });
     }
-  }
-
-  Color _resolveColor(dynamic val, Color fallback) {
-    if (val is Color) return val;
-    if (val is int) return Color(val);
-    return fallback;
-  }
-
-  IconData _resolveIcon(dynamic iconVal, dynamic category) {
-    if (iconVal is IconData) return iconVal;
-    if (category == 'extreme') return Icons.error_outline_rounded;
-    if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
-    return Icons.warning_amber_rounded;
-  }
-
-  /// Mengubah satu baris `screening_sessions` dari backend menjadi struktur kartu riwayat
-  Map<String, dynamic> _mapSession(Map<String, dynamic> s) {
-    int asInt(dynamic v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-
-    final int voiceScore = asInt(s['voice_score']) > 0 ? asInt(s['voice_score']) : asInt(s['skor_akustik']);
-    final int visualScore = asInt(s['visual_score']) > 0 ? asInt(s['visual_score']) : asInt(s['skor_sklera']);
-    int sketchScore = asInt(s['sketch_score']) > 0 ? asInt(s['sketch_score']) : asInt(s['skor_motorik']);
-    int gaitScore = asInt(s['gait_score']) > 0 ? asInt(s['gait_score']) : asInt(s['skor_motorik']);
-
-    // Dapatkan persentase mandiri dan berbeda jika skor kembar identik
-    if (sketchScore == gaitScore && sketchScore > 0) {
-      sketchScore = (sketchScore - 6).clamp(18, 92);
-      gaitScore = (gaitScore + 5).clamp(18, 95);
-    }
-
-    final int avg = ((voiceScore + visualScore + sketchScore + gaitScore) / 4).round().clamp(0, 100);
-
-    final String kategori = (s['kategori_burnout'] ?? 'Kelelahan Terdeteksi').toString();
-    final String lower = kategori.toLowerCase();
-    final bool emergency = s['is_emergency'] == true;
-
-    late final String category;
-    late final String label;
-    late final Color accent;
-    late final Color tint;
-    late final Color text;
-    late final IconData icon;
-    if (emergency || lower.contains('zombi akut')) {
-      category = 'extreme';
-      label = 'Kritis';
-      accent = NeoColors.redDark;
-      tint = NeoColors.redLight;
-      text = NeoColors.darkRedZombie;
-      icon = Icons.error_outline_rounded;
-    } else if (lower.contains('stabil') || lower.contains('sehat') || lower.contains('prima')) {
-      category = 'healthy';
-      label = 'Prima';
-      accent = NeoColors.greenDark;
-      tint = NeoColors.greenLight;
-      text = NeoColors.greenDark;
-      icon = Icons.sentiment_very_satisfied_rounded;
-    } else {
-      category = 'moderate';
-      label = 'Burnout';
-      accent = NeoColors.amber;
-      tint = const Color(0xFFFEF3C7);
-      text = const Color(0xFF92400E);
-      icon = Icons.warning_amber_rounded;
-    }
-
-    final DateTime? created = DateTime.tryParse('${s['created_at']}')?.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    final String date = created == null
-        ? '-'
-        : '${two(created.day)} ${_months[created.month - 1]} ${created.year}';
-    final String time = created == null ? '-' : '${two(created.hour)}:${two(created.minute)}';
-
-    final String eyeLabel = (s['eye_label'] ?? 'Normal (Sehat)').toString();
-    final String audioLabel = (s['audio_label'] ?? 'Vokal Normal (Stabil)').toString();
-    final String sketchLabel = (s['sketch_label'] ?? 'Pola Coretan Rileks & Kontinu').toString();
-    final String gaitLabel = (s['gait_label'] ?? 'Langkah Stabil & Terkoordinasi').toString();
-
-    String diagSummary = (s['diagnosis_summary'] ?? '').toString();
-    if (diagSummary.isEmpty) {
-      diagSummary = 'Mata: $eyeLabel ($visualScore%) • Suara: $audioLabel ($voiceScore%) • Sketsa: $sketchLabel ($sketchScore%) • Gait: $gaitLabel ($gaitScore%)';
-    }
-
-    String tips = 'Pertahankan ritme istirahat dan hidrasi yang teratur.';
-    final recipes = s['ai_recipes'];
-    if (recipes is List && recipes.isNotEmpty && recipes.first is Map) {
-      tips = ((recipes.first as Map)['deskripsi_tugas'] ?? tips).toString();
-    }
-
-    return {
-      'id': (s['id_skrining'] ?? '-').toString(),
-      'date': date,
-      'time': time,
-      'category': category,
-      'title': kategori,
-      'score': avg,
-      'badgeText': '$label • $avg/100',
-      'accentColor': accent,
-      'bgTint': tint,
-      'textColor': text,
-      'icon': icon,
-      'summary': diagSummary,
-      'details': {
-        'suara': {'score': '$voiceScore%', 'desc': audioLabel},
-        'gait': {'score': '$gaitScore%', 'desc': gaitLabel},
-        'visual': {'score': '$visualScore%', 'desc': eyeLabel},
-        'sketsa': {'score': '$sketchScore%', 'desc': sketchLabel},
-      },
-      'tips': tips,
-    };
   }
 
   String get _averageScoreLabel {
@@ -232,65 +102,93 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildLoadingState() {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 60),
-      child: Center(child: CircularProgressIndicator(color: NeoColors.primaryBlue)),
+      child: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+        ),
+      ),
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
-        color: NeoColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NeoColors.borderBlack, width: 2),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 40, color: NeoColors.redDark),
-          const SizedBox(height: 8),
+          const Icon(Icons.cloud_off_rounded, size: 44, color: redCrit),
+          const SizedBox(height: 10),
           Text(
             _error ?? 'Terjadi kesalahan.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: NeoColors.darkGray,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               fontSize: 13,
             ),
           ),
-          const SizedBox(height: 14),
-          NeoButton(
-            text: 'Coba Lagi',
-            icon: Icons.refresh_rounded,
-            backgroundColor: NeoColors.primaryBlue,
-            textColor: NeoColors.white,
-            onPressed: _loadHistory,
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 44,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Coba Lagi', style: TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                elevation: 0,
+              ),
+              onPressed: _loadHistory,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNoHistoryState() {
+  Widget _buildNoHistoryState(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(32),
       margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
-        color: NeoColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NeoColors.borderBlack, width: 2),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.history_toggle_off_rounded, size: 40, color: NeoColors.darkGray),
-          SizedBox(height: 8),
+          Icon(
+            Icons.history_toggle_off_rounded,
+            size: 48,
+            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(height: 12),
           Text(
             'Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: NeoColors.darkGray,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               fontSize: 13,
+              height: 1.4,
             ),
           ),
         ],
@@ -300,23 +198,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textTheme = theme.textTheme;
+
     final filtered = _history.where((item) {
       if (_selectedFilter == 'all') return true;
       return item['category'] == _selectedFilter;
     }).toList();
 
     return Scaffold(
-      backgroundColor: NeoColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
             // Header Bar
-            _buildHeaderBar(context),
+            _buildHeaderBar(context, isDark, textTheme),
 
             // Content List
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadHistory,
+                color: primaryBlue,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
@@ -324,35 +227,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     if (_isLoading)
                       _buildLoadingState()
                     else if (_error != null)
-                      _buildErrorState()
+                      _buildErrorState(isDark)
                     else if (_history.isEmpty)
-                      _buildNoHistoryState()
+                      _buildNoHistoryState(isDark)
                     else ...[
                       // Stat Overview Banner
-                      _buildStatBanner(),
+                      _buildStatBanner(isDark, textTheme),
                       const SizedBox(height: 18),
 
                       // Filter Chips
-                      _buildFilterChips(),
+                      _buildFilterChips(isDark),
                       const SizedBox(height: 16),
 
                       // History Cards
                       if (filtered.isEmpty)
-                        _buildEmptyState()
+                        _buildEmptyState(isDark)
                       else
-                        ...filtered.map((item) => _buildHistoryCard(context, item)),
+                        ...filtered.map((item) => _buildHistoryCard(context, item, isDark, textTheme)),
                     ],
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
 
-                    // Bottom Button to trigger new screening
-                    NeoButton(
-                      text: "+ Skrining Baru Sekarang",
-                      icon: Icons.add_chart_rounded,
-                      backgroundColor: NeoColors.primaryBlue,
-                      textColor: NeoColors.white,
-                      onPressed: widget.onStartNewScreening ??
-                          () => Navigator.pushNamed(context, '/stage1'),
+                    // Bottom Button: Skrining Baru
+                    SizedBox(
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add_chart_rounded, size: 20),
+                        label: const Text(
+                          "+ Skrining Baru Sekarang",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBlue,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          shadowColor: primaryBlue.withValues(alpha: 0.35),
+                        ),
+                        onPressed: widget.onStartNewScreening ??
+                            () => Navigator.pushNamed(context, '/stage1'),
+                      ),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -366,7 +286,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   // --- HEADER BAR ---
-  Widget _buildHeaderBar(BuildContext context) {
+  Widget _buildHeaderBar(BuildContext context, bool isDark, TextTheme textTheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       child: Row(
@@ -377,24 +297,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 InkWell(
                   onTap: widget.onBackToDashboard ?? () => Navigator.maybePop(context),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
-                      color: NeoColors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: NeoColors.borderBlack, width: 2),
-                      boxShadow: const [
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
                         BoxShadow(
-                          color: NeoColors.borderBlack,
-                          offset: Offset(2, 2),
+                          color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.arrow_back_rounded,
-                      size: 20,
-                      color: NeoColors.primaryBlue,
+                      size: 18,
+                      color: isDark ? Colors.white : primaryBlue,
                     ),
                   ),
                 ),
@@ -404,12 +324,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'Riwayat Skrining',
-                        style: TextStyle(
+                        style: textTheme.titleMedium?.copyWith(
                           fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: NeoColors.primaryBlue,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : primaryBlue,
                           height: 1.1,
                         ),
                         maxLines: 1,
@@ -417,10 +337,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       Text(
                         'Rekapitulasi Multimodal AI',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: NeoColors.primaryBlue.withValues(alpha: 0.75),
+                        style: textTheme.bodySmall?.copyWith(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -432,31 +352,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Flexible(
-            flex: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: NeoColors.primaryYellow,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: NeoColors.borderBlack, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: NeoColors.borderBlack,
-                    offset: Offset(1.5, 1.5),
-                  ),
-                ],
-              ),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  '${_history.length} Sesi',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: NeoColors.borderBlack,
-                  ),
-                ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '${_history.length} Sesi',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: primaryBlue,
+                letterSpacing: 0.4,
               ),
             ),
           ),
@@ -465,39 +373,48 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // --- STAT OVERVIEW BANNER ---
-  Widget _buildStatBanner() {
-    return NeoCard(
-      backgroundColor: NeoColors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      shadowOffset: 4,
+  // --- STAT OVERVIEW BANNER (MODERN CLEAN CARD) ---
+  Widget _buildStatBanner(bool isDark, TextTheme textTheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatColumn('Total Sesi', '${_history.length}', Icons.history_edu_rounded),
-          Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Rata-rata Skor', _averageScoreLabel, Icons.analytics_outlined),
-          Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Kondisi Terkini', _latestConditionLabel, Icons.verified_user_outlined),
+          _buildStatColumn('Total Sesi', '${_history.length}', Icons.history_edu_rounded, isDark, textTheme),
+          Container(width: 1, height: 36, color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          _buildStatColumn('Rata-rata', _averageScoreLabel, Icons.analytics_outlined, isDark, textTheme),
+          Container(width: 1, height: 36, color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          _buildStatColumn('Terkini', _latestConditionLabel, Icons.verified_user_outlined, isDark, textTheme),
         ],
       ),
     );
   }
 
-  Widget _buildStatColumn(String label, String value, IconData icon) {
+  Widget _buildStatColumn(String label, String value, IconData icon, bool isDark, TextTheme textTheme) {
     return Column(
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: NeoColors.primaryBlue),
+            Icon(icon, size: 13, color: primaryBlue),
             const SizedBox(width: 4),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 10,
+              style: textTheme.bodySmall?.copyWith(
+                fontSize: 10.5,
                 fontWeight: FontWeight.w600,
-                color: NeoColors.darkGray,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -505,10 +422,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
+          style: textTheme.titleSmall?.copyWith(
             fontSize: 14,
-            fontWeight: FontWeight.w900,
-            color: NeoColors.black,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),
       ],
@@ -516,7 +433,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   // --- FILTER CHIPS ---
-  Widget _buildFilterChips() {
+  Widget _buildFilterChips(bool isDark) {
     final filters = [
       {'key': 'all', 'label': 'Semua (${_history.length})'},
       {'key': 'healthy', 'label': 'Prima (${_countCategory('healthy')})'},
@@ -537,27 +454,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _selectedFilter = f['key']!;
                 });
               },
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(999),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? NeoColors.primaryBlue : NeoColors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: NeoColors.borderBlack, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: NeoColors.borderBlack,
-                      offset: isSelected ? const Offset(1, 1) : const Offset(2, 2),
-                    ),
-                  ],
+                  color: isSelected
+                      ? primaryBlue
+                      : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: primaryBlue.withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Text(
                   f['label']!,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? NeoColors.white : NeoColors.black,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
                   ),
                 ),
               ),
@@ -568,23 +497,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // --- HISTORY CARD ITEM ---
-  Widget _buildHistoryCard(BuildContext context, Map<String, dynamic> item) {
-    final Color accentColor = item['accentColor'];
-    final Color bgTint = item['bgTint'];
-    final Color textColor = item['textColor'];
+  // --- HISTORY CARD ITEM (MODERN CLEAN CARD) ---
+  Widget _buildHistoryCard(BuildContext context, Map<String, dynamic> item, bool isDark, TextTheme textTheme) {
+    final Color accentColor = item['accentColor'] ?? primaryBlue;
+    final Color bgTint = accentColor.withValues(alpha: isDark ? 0.22 : 0.1);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: NeoColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NeoColors.borderBlack, width: 2.5),
-        boxShadow: const [
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
           BoxShadow(
-            color: NeoColors.borderBlack,
-            offset: Offset(4, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -597,32 +525,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today_rounded, size: 12, color: NeoColors.darkGray),
-                  const SizedBox(width: 5),
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 6),
                   Text(
                     '${item['date']} • ${item['time']}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: NeoColors.darkGray,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F0EA),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: NeoColors.borderBlack.withValues(alpha: 0.3)),
+                  color: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   item['id'],
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: NeoColors.darkGray,
+                    letterSpacing: 0.4,
+                    color: primaryBlue,
                   ),
                 ),
               ),
@@ -639,9 +570,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 decoration: BoxDecoration(
                   color: bgTint,
                   shape: BoxShape.circle,
-                  border: Border.all(color: accentColor, width: 2),
                 ),
-                child: Icon(item['icon'], color: accentColor, size: 24),
+                child: Icon(item['icon'], color: accentColor, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -650,10 +580,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   children: [
                     Text(
                       item['title'],
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: textColor,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -661,14 +591,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: bgTint,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         item['badgeText'],
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: textColor,
+                          fontWeight: FontWeight.w700,
+                          color: accentColor,
                         ),
                       ),
                     ),
@@ -682,9 +612,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           // Ringkasan Teks
           Text(
             item['summary'],
-            style: const TextStyle(
+            style: textTheme.bodySmall?.copyWith(
               fontSize: 12,
-              color: NeoColors.darkGray,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               height: 1.4,
             ),
           ),
@@ -695,25 +625,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _buildMicroMetricPill('🎙️ Suara', item['details']['suara']['score']),
-              _buildMicroMetricPill('🚶 Gait', item['details']['gait']['score']),
-              _buildMicroMetricPill('👁️ Visual', item['details']['visual']['score']),
-              _buildMicroMetricPill('✏️ Sketsa', item['details']['sketsa']['score']),
+              _buildMicroMetricPill('🎙️ Suara', item['details']['suara']['score'], isDark),
+              _buildMicroMetricPill('🚶 Gait', item['details']['gait']['score'], isDark),
+              _buildMicroMetricPill('👁️ Visual', item['details']['visual']['score'], isDark),
+              _buildMicroMetricPill('✏️ Sketsa', item['details']['sketsa']['score'], isDark),
             ],
           ),
           const SizedBox(height: 14),
 
           // Action Button: Lihat Rincian
           InkWell(
-            onTap: () => _showDetailBottomSheet(context, item),
-            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showDetailBottomSheet(context, item, isDark, textTheme),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: NeoColors.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: NeoColors.borderBlack, width: 1.5),
+                color: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -721,13 +650,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Text(
                     'Lihat Analisis Lengkap',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: NeoColors.black,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: primaryBlue,
                     ),
                   ),
                   SizedBox(width: 6),
-                  Icon(Icons.arrow_forward_rounded, size: 15, color: NeoColors.black),
+                  Icon(Icons.arrow_forward_rounded, size: 14, color: primaryBlue),
                 ],
               ),
             ),
@@ -737,43 +666,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildMicroMetricPill(String label, String value) {
+  Widget _buildMicroMetricPill(String label, String value, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F7F2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: NeoColors.borderBlack.withValues(alpha: 0.2)),
+        color: isDark ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: NeoColors.black,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : const Color(0xFF1E293B),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(28),
       margin: const EdgeInsets.only(top: 20),
       decoration: BoxDecoration(
-        color: NeoColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NeoColors.borderBlack, width: 2),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.search_off_rounded, size: 40, color: NeoColors.darkGray),
-          SizedBox(height: 8),
+          Icon(
+            Icons.search_off_rounded,
+            size: 40,
+            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(height: 8),
           Text(
             'Tidak ada riwayat pada kategori ini.',
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: NeoColors.darkGray,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               fontSize: 13,
             ),
           ),
@@ -782,8 +720,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // --- MODAL BOTTOM SHEET DETAIL ANALISIS ---
-  void _showDetailBottomSheet(BuildContext context, Map<String, dynamic> item) {
+  // --- MODAL BOTTOM SHEET DETAIL ANALISIS (MODERN CLEAN) ---
+  void _showDetailBottomSheet(BuildContext context, Map<String, dynamic> item, bool isDark, TextTheme textTheme) {
     final details = item['details'] as Map<String, dynamic>;
 
     showModalBottomSheet(
@@ -792,16 +730,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
-          decoration: const BoxDecoration(
-            color: NeoColors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(
-              top: BorderSide(color: NeoColors.borderBlack, width: 3),
-              left: BorderSide(color: NeoColors.borderBlack, width: 3),
-              right: BorderSide(color: NeoColors.borderBlack, width: 3),
-            ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.all(22.0),
+          padding: const EdgeInsets.all(24.0),
           child: SafeArea(
             child: SingleChildScrollView(
               child: Column(
@@ -811,15 +751,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   // Handle Bar
                   Center(
                     child: Container(
-                      width: 48,
-                      height: 5,
+                      width: 44,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: NeoColors.borderBlack.withValues(alpha: 0.3),
+                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
 
                   // Header Modal
                   Row(
@@ -830,115 +770,65 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item['id'],
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: NeoColors.darkGray,
+                              item['title'],
+                              style: textTheme.titleMedium?.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Text(
-                              item['title'],
-                              softWrap: true,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                              '${item['date']} • ${item['time']}',
                               style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                color: item['textColor'],
-                                height: 1.2,
+                                fontSize: 12,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
-                          color: item['bgTint'],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: item['accentColor'], width: 1.5),
+                          color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          'Skor ${item['score']}/100',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: item['textColor'],
+                          item['id'],
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: primaryBlue,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-
-                  const Text(
-                    'RINCIAN 4 SENSOR MULTIMODAL',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: NeoColors.primaryBlue,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 4 Sensor Breakdown List
-                  _buildSensorDetailRow('1. Prosodi Vokal (Suara)', details['suara']['score'], details['suara']['desc'], Icons.mic_rounded),
-                  _buildSensorDetailRow('2. Gait Tracker (Sensor Gerak)', details['gait']['score'], details['gait']['desc'], Icons.directions_walk_rounded),
-                  _buildSensorDetailRow('3. Tegangan Visual (Kamera)', details['visual']['score'], details['visual']['desc'], Icons.remove_red_eye_rounded),
-                  _buildSensorDetailRow('4. Coretan Mental (Canvas Doodle)', details['sketsa']['score'], details['sketsa']['desc'], Icons.draw_rounded),
-
-                  const SizedBox(height: 16),
-
-                  // Rekomendasi Box
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F0EA),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: NeoColors.borderBlack, width: 2),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.lightbulb_outline_rounded, size: 16, color: NeoColors.primaryBlue),
-                            SizedBox(width: 6),
-                            Text(
-                              'REKOMENDASI AI',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: NeoColors.primaryBlue,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item['tips'],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: NeoColors.black,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 20),
 
-                  // Close button
-                  NeoButton(
-                    text: 'Tutup Rincian',
-                    backgroundColor: NeoColors.slate,
-                    textColor: NeoColors.white,
-                    onPressed: () => Navigator.pop(ctx),
+                  // Detail Metrik 4 Sensor
+                  _buildDetailRow('🎙️ Nada Vokal (Audio)', details['suara'], isDark, textTheme),
+                  _buildDetailRow('🚶 Dinamika Gait (Langkah)', details['gait'], isDark, textTheme),
+                  _buildDetailRow('👁️ Mikrosleep & Sklera', details['visual'], isDark, textTheme),
+                  _buildDetailRow('✏️ Ritme Motorik (Sketsa)', details['sketsa'], isDark, textTheme),
+
+                  const SizedBox(height: 22),
+
+                  // Tombol Tutup
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Tutup Analisis', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
                   ),
                 ],
               ),
@@ -949,67 +839,55 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildSensorDetailRow(String title, String score, String desc, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9F9F7),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: NeoColors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: NeoColors.borderBlack, width: 1.5),
-              ),
-              child: Icon(icon, size: 18, color: NeoColors.primaryBlue),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: NeoColors.black,
-                    ),
-                  ),
-                  Text(
-                    desc,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: NeoColors.darkGray,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: NeoColors.primaryBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                score,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: NeoColors.primaryBlue,
+  Widget _buildDetailRow(String title, Map<String, dynamic> data, bool isDark, TextTheme textTheme) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF141414) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  data['score'] ?? '-',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: primaryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            data['diagnosis'] ?? '-',
+            style: textTheme.bodySmall?.copyWith(
+              fontSize: 11.5,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              height: 1.35,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

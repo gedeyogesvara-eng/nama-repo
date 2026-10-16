@@ -7,10 +7,10 @@ import tempfile
 import urllib.request
 import numpy as np
 import librosa
-import soundfile as sf
-import av
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout, Conv1D, MaxPooling1D, Flatten
 from tensorflow.keras.models import Model, Sequential
@@ -26,6 +26,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Skema data JSON yang diharapkan dari Frontend untuk Modul 3
+class SensorData(BaseModel):
+    sensor_data: List[List[float]]
 
 # ==========================================
 # KONFIGURASI MODUL 1: EYE ANALYSIS
@@ -68,6 +72,26 @@ model_audio = Sequential([
     Dense(1, activation='sigmoid')
 ])
 model_audio.load_weights(WEIGHTS_AUDIO)
+
+# ==========================================
+# KONFIGURASI MODUL 3: ACTIVITY RECOGNITION
+# ==========================================
+WEIGHTS_ACTIVITY = "activity_weights.weights.h5"
+
+print("Membangun arsitektur 1D CNN (Aktivitas)...")
+model_activity = Sequential([
+    Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(150, 3)),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.3),
+    Conv1D(filters=128, kernel_size=3, activation='relu'),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.3),
+    Flatten(),
+    Dense(64, activation='relu'),
+    Dropout(0.3),
+    Dense(1, activation='sigmoid')
+])
+model_activity.load_weights(WEIGHTS_ACTIVITY)
 
 print("Somatic.AI Core Engine Siap Beroperasi!")
 
@@ -322,12 +346,33 @@ async def analyze_eye(file: UploadFile = File(...)):
 
         nparr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None: 
+            return {"status": "error", "message": "Gambar korup."}
 
-        if img is None:
-            return {"status": "error", "message": "Gambar tidak dapat didekode / format tidak valid."}
+        # 1. FILTER GAMBAR HITAM/GELAP TOTAL
+        # Menghitung rata-rata intensitas piksel. Nilai 0 = hitam total, 255 = putih total.
+        mean_brightness = np.mean(img)
+        if mean_brightness < 15:  # Jika sangat gelap
+            return {"status": "success", "data": {"label": "Gambar terlalu gelap/hitam total", "confidence": 0}}
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        eyes = eye_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        # Penyesuaian parameter Haar Cascade agar lebih ketat (minNeighbors dinaikkan jadi 7)
+        eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=7)
+        
+        # 2. FILTER JIKA MATA TIDAK DITEMUKAN
+        if len(eyes) == 0: 
+            # Output diubah menjadi success agar Frontend tidak error, tapi labelnya spesifik
+            return {"status": "success", "data": {"label": "Mata tidak terdeteksi pada gambar", "confidence": 0}}
+            
+        (x, y, w, h) = eyes[0]
+        padding = 10
+        y_min, y_max = max(0, y - padding), min(img.shape[0], y + h + padding)
+        x_min, x_max = max(0, x - padding), min(img.shape[1], x + w + padding)
+        
+        eye_crop = img[y_min:y_max, x_min:x_max]
+        eye_crop_rgb = cv2.cvtColor(eye_crop, cv2.COLOR_BGR2RGB)
 
         if len(eyes) > 0:
             (x, y, w, h) = eyes[0]
@@ -407,251 +452,30 @@ async def analyze_audio(file: UploadFile = File(...)):
         return {"status": "error", "message": str(e)}
 
 # ==========================================
-# ENDPOINT MODUL 3: SKETCH ANALYSIS
+# ENDPOINT MODUL 3
 # ==========================================
-@app.post("/api/analyze-sketch")
-async def analyze_sketch(file: UploadFile = File(...)):
+@app.post("/api/analyze-activity")
+async def analyze_activity(data: SensorData):
     try:
-        contents = await file.read()
-        result = process_sketch_image(contents)
-        return {"status": "success", "data": result}
+        # Konversi JSON dari Flutter ke NumPy Array
+        sensor_array = np.array(data.sensor_data, dtype=np.float32)
+        
+        # Validasi dimensi (harus 150 baris, 3 kolom)
+        if sensor_array.shape != (150, 3):
+            return {"status": "error", "message": f"Dimensi data salah. Diharapkan (150, 3), diterima {sensor_array.shape}"}
+            
+        # Tambahkan dimensi batch (1, 150, 3)
+        input_data = np.expand_dims(sensor_array, axis=0)
+        # Prediksi
+        prediction = float(model_activity.predict(input_data, verbose=0)[0][0])
+        
+        label = "Berlari (Langkah Cepat/Guncangan Tinggi)" if prediction > 0.5 else "Berjalan (Langkah Stabil)"
+        confidence = round(prediction * 100, 2) if prediction > 0.5 else round((1 - prediction) * 100, 2)
+            
+        return {"status": "success", "data": {"label": label, "confidence": confidence}}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-# ==========================================
-# ENDPOINT MODUL 4: GAIT SENSOR ANALYSIS
-# ==========================================
-@app.post("/api/analyze-gait")
-async def analyze_gait(gait_sensor: str = Form("gait_recorded")):
-    try:
-        result = process_gait_data(gait_sensor)
-        return {"status": "success", "data": result}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# ==========================================
-# ENDPOINT MULTIMODAL LENGKAP: 4 INPUT (Foto, Audio, Coretan, Gait)
-# ==========================================
-@app.post("/api/analyze-multimodal")
-@app.post("/predict")
-async def analyze_multimodal(
-    face_image: UploadFile = File(None),
-    foto: UploadFile = File(None),
-    drawing_image: UploadFile = File(None),
-    drawing: UploadFile = File(None),
-    audio: UploadFile = File(None),
-    file_audio: UploadFile = File(None),
-    gait_sensor: str = Form("gait_recorded"),
-    id_user: str = Form(""),
-    user_id: str = Form("")
-):
-    try:
-        # 1. Modul Visual / Mata
-        face_file = face_image or foto
-        if face_file:
-            face_bytes = await face_file.read()
-            eye_res = await analyze_eye_bytes(face_bytes)
-        else:
-            eye_res = {"label": "Normal (Sehat)", "confidence": 80.0, "visual_score": 30.0}
-
-        # 2. Modul Suara / Akustik
-        audio_file = audio or file_audio
-        if audio_file:
-            audio_bytes = await audio_file.read()
-            voice_res = await analyze_audio_bytes(audio_bytes)
-        else:
-            voice_res = {"label": "Vokal Normal (Stabil)", "confidence": 80.0, "voice_score": 32.0}
-
-        # 3. Modul Sketsa / Coretan
-        draw_file = drawing_image or drawing
-        if draw_file:
-            draw_bytes = await draw_file.read()
-            sketch_res = process_sketch_image(draw_bytes)
-        else:
-            sketch_res = {"score": 40.0, "label": "Pola Coretan Rileks & Kontinu", "confidence": 75.0}
-
-        # 4. Modul Gait
-        gait_res = process_gait_data(gait_sensor)
-
-        # 4 Skor terpisah
-        visual_score = float(eye_res.get("visual_score", 30.0))
-        voice_score = float(voice_res.get("voice_score", 32.0))
-        sketch_score = float(sketch_res.get("score", 40.0))
-        gait_score = float(gait_res.get("score", 38.0))
-
-        # Pastikan skor sketsa dan gait tidak pernah kembar identik
-        if abs(sketch_score - gait_score) < 1.0:
-            if gait_score >= 50:
-                gait_score = round(max(18.0, gait_score - 8.0), 1)
-            else:
-                gait_score = round(min(95.0, gait_score + 9.0), 1)
-
-        visual_label = eye_res.get("label", "Normal (Sehat)")
-        voice_label = voice_res.get("label", "Vokal Normal (Stabil)")
-        sketch_label = sketch_res.get("label", "Pola Coretan Rileks & Kontinu")
-        gait_label = gait_res.get("label", "Langkah Stabil & Terkoordinasi")
-
-        # Diagnosis multimodal terintegrasi
-        avg_score = round((visual_score + voice_score + sketch_score + gait_score) / 4.0, 1)
-
-        is_emergency = False
-        if avg_score >= 76.0 or (voice_score >= 78.0 and visual_score >= 78.0):
-            kategori = "Mode Zombi Akut (Kelelahan Multimodal)"
-            is_emergency = True
-        elif voice_score >= 72.0 and visual_score < 60.0:
-            kategori = "Kelelahan Vokal & Beban Kognitif"
-        elif visual_score >= 72.0 and voice_score < 60.0:
-            kategori = "Astenopia / Kelelahan Visual & Sklera"
-        elif sketch_score >= 72.0 or gait_score >= 72.0:
-            kategori = "Ketegangan Neuromuskular & Kelelahan Motorik"
-        elif avg_score < 42.0:
-            kategori = "Kondisi Prima & Bugar (Human Prime)"
-        else:
-            kategori = "Burnout Sedang (Fisik & Mental)"
-
-        # Ringkasan diagnosis dinamis
-        diagnosis_summary = (
-            f"Mata: {visual_label} ({int(round(visual_score))}%) • "
-            f"Suara: {voice_label} ({int(round(voice_score))}%) • "
-            f"Sketsa: {sketch_label} ({int(round(sketch_score))}%) • "
-            f"Gait: {gait_label} ({int(round(gait_score))}%)"
-        )
-
-        # Resep dinamis terspesialisasi berdasarkan modalitas tertinggi
-        resep = generate_targeted_recipes(visual_score, voice_score, sketch_score, gait_score)
-
-        return {
-            "status": "success",
-            "kategori_burnout": kategori,
-            "is_emergency": is_emergency,
-            "diagnosis_summary": diagnosis_summary,
-            "skor_rata_rata": avg_score,
-            "skor_akustik": int(round(voice_score)),
-            "skor_sklera": int(round(visual_score)),
-            "skor_motorik": int(round((sketch_score + gait_score) / 2.0)),
-            "scores": {
-                "visual_score": visual_score,
-                "voice_score": voice_score,
-                "sketch_score": sketch_score,
-                "gait_score": gait_score
-            },
-            "labels": {
-                "visual_label": visual_label,
-                "voice_label": voice_label,
-                "sketch_label": sketch_label,
-                "gait_label": gait_label
-            },
-            "resep": resep
-        }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-async def analyze_eye_bytes(contents: bytes):
-    try:
-        nparr = np.frombuffer(contents, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            return {"label": "Normal (Sehat)", "confidence": 75.0, "visual_score": 30.0}
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        eyes = eye_cascade.detectMultiScale(gray, 1.3, 5)
-
-        if len(eyes) > 0:
-            (x, y, w, h) = eyes[0]
-            padding = 10
-            y_min, y_max = max(0, y - padding), min(img.shape[0], y + h + padding)
-            x_min, x_max = max(0, x - padding), min(img.shape[1], x + w + padding)
-            eye_crop = img[y_min:y_max, x_min:x_max]
-        else:
-            eye_crop = img
-
-        eye_crop_rgb = cv2.cvtColor(eye_crop, cv2.COLOR_BGR2RGB)
-        img_resized = cv2.resize(eye_crop_rgb, (224, 224))
-        img_array = img_to_array(img_resized) / 255.0
-        img_expanded = np.expand_dims(img_array, axis=0)
-
-        prediction = float(model_eye.predict(img_expanded, verbose=0)[0][0])
-        is_normal = prediction > 0.5
-        label = "Normal (Sehat)" if is_normal else "Indikasi Jaundice (Kelelahan)"
-        confidence = round(prediction * 100, 2) if is_normal else round((1.0 - prediction) * 100, 2)
-
-        if not is_normal:
-            visual_score = round(min(98.0, max(68.0, 65.0 + confidence * 0.3)), 1)
-        else:
-            visual_score = round(max(15.0, min(42.0, 48.0 - (confidence * 0.35))), 1)
-
-        return {"label": label, "confidence": confidence, "visual_score": visual_score}
-    except Exception:
-        return {"label": "Normal (Sehat)", "confidence": 75.0, "visual_score": 30.0}
-
-async def analyze_audio_bytes(contents: bytes):
-    try:
-        audio, sample_rate = decode_audio_bytes(contents, target_sr=22050)
-        mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=40)
-        mfccs_scaled = np.mean(mfccs.T, axis=0)
-
-        mfcc_expanded = np.expand_dims(mfccs_scaled, axis=0)
-        mfcc_expanded = np.expand_dims(mfcc_expanded, axis=-1)
-
-        prediction = float(model_audio.predict(mfcc_expanded, verbose=0)[0][0])
-        is_burnout = prediction > 0.5
-        label = "Indikasi Acoustic Burnout (Stres Tinggi)" if is_burnout else "Vokal Normal (Stabil)"
-        confidence = round(prediction * 100, 2) if is_burnout else round((1.0 - prediction) * 100, 2)
-
-        if is_burnout:
-            voice_score = round(min(98.0, max(70.0, 68.0 + confidence * 0.3)), 1)
-        else:
-            voice_score = round(max(16.0, min(44.0, 48.0 - (confidence * 0.35))), 1)
-
-        return {"label": label, "confidence": confidence, "voice_score": voice_score}
-    except Exception:
-        return {"label": "Vokal Normal (Stabil)", "confidence": 75.0, "voice_score": 32.0}
-
-def generate_targeted_recipes(visual_score, voice_score, sketch_score, gait_score):
-    scores = [
-        ("visual", visual_score),
-        ("voice", voice_score),
-        ("sketch", sketch_score),
-        ("gait", gait_score)
-    ]
-    scores.sort(key=lambda x: x[1], reverse=True)
-    highest_domain = scores[0][0]
-
-    recipes = []
-    if highest_domain == "voice" or voice_score >= 65:
-        recipes.append({
-            "jenis_intervensi": "Relaksasi Akustik & Vokal",
-            "deskripsi_tugas": "Lakukan vokal rest 15 menit dan latihan napas diafragma 4-7-8 untuk menstabilkan ketegangan pita suara dan sistem saraf otonom."
-        })
-    else:
-        recipes.append({
-            "jenis_intervensi": "Fisik & Nutrisi Sel",
-            "deskripsi_tugas": "Ganti jadwal olahraga berat dengan peregangan dinamis 10 menit dan minum air putih 500ml untuk hidrasi selular."
-        })
-
-    if highest_domain == "visual" or visual_score >= 65:
-        recipes.append({
-            "jenis_intervensi": "Pemulihan Sklera & Visual",
-            "deskripsi_tugas": "Terapkan aturan 20-20-20 (alih pandangan ke objek 6 meter selama 20 detik) dan berikan kompres hangat pada kelopak mata."
-        })
-    else:
-        recipes.append({
-            "jenis_intervensi": "Mental & Taktil",
-            "deskripsi_tugas": "Alihkan saraf motorik halus dengan aktivitas taktil: seduh kopi/teh manual brew secara perlahan selama 5 menit tanpa menatap layar."
-        })
-
-    if highest_domain == "gait" or highest_domain == "sketch" or (sketch_score >= 60 or gait_score >= 60):
-        recipes.append({
-            "jenis_intervensi": "Kalibrasi Ritme Somatik",
-            "deskripsi_tugas": "Lakukan jalan santai tanpa gadget di ruang terbuka hijau selama 15 menit untuk mengkalibrasi ulang ritme gait dan sirkadian tubuh."
-        })
-    else:
-        recipes.append({
-            "jenis_intervensi": "Digital Boundary",
-            "deskripsi_tugas": "Aktifkan mode malam/grayscale pada perangkat kerja dan hentikan memeriksa notifikasi 45 menit sebelum tidur."
-        })
-
-    return recipes
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)

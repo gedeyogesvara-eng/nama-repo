@@ -2,8 +2,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/auth_service.dart';
 import 'services/api_config.dart';
+import 'services/supabase_config.dart';
 import 'theme/theme_controller.dart';
 import 'screens/splash_screen.dart';
 import 'screens/loading_scan_screen.dart';
@@ -18,8 +20,22 @@ import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/anti_zombie_recipe_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi Supabase
+  try {
+    await Supabase.initialize(
+      url: 'https://zqtcqkjxebrabrvifygn.supabase.co',
+      // ignore: deprecated_member_use
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdGNxa2p4ZWJyYWJydmlmeWduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTM4NzEsImV4cCI6MjEwNzcyOTg3MX0.62WR8qPsDPz6Ij315VJYsctKoXOc3iR8lmwlZspd7OA',
+    );
+  } catch (_) {
+    // Fallback otomatis jika 'URL_ANDA' belum diganti dengan Project URL asli
+    await SupabaseConfig.init();
+  }
 
   // Inisialisasi konfigurasi API & SharedPreferences
   await ApiConfig.init();
@@ -91,27 +107,115 @@ class DepressionDetectionApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           themeMode: currentMode,
           theme: ThemeData(
+            useMaterial3: true,
             brightness: Brightness.light,
             scaffoldBackgroundColor: const Color(0xFFF2F1EB),
             fontFamily: 'sans-serif',
-            colorScheme: ColorScheme.fromSeed(
-              brightness: Brightness.light,
-              seedColor: const Color(0xFF314BB5),
-              primary: const Color(0xFF314BB5),
-              secondary: const Color(0xFFFFC436),
-              surface: const Color(0xFFF2F1EB),
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF314BB5),
+              onPrimary: Colors.white,
+              secondary: Color(0xFFFFC436),
+              onSecondary: Colors.black,
+              surface: Colors.white,
+              onSurface: Color(0xFF0F172A),
+              error: Color(0xFFEF4444),
+              onError: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              displayLarge: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              displayMedium: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              displaySmall: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              headlineLarge: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              headlineMedium: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+              headlineSmall: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+              titleLarge: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              titleMedium: TextStyle(
+                  color: Color(0xFF1E293B), fontWeight: FontWeight.w600),
+              titleSmall: TextStyle(
+                  color: Color(0xFF475569), fontWeight: FontWeight.w600),
+              bodyLarge: TextStyle(color: Color(0xFF1E293B)),
+              bodyMedium: TextStyle(color: Color(0xFF334155)),
+              bodySmall: TextStyle(color: Color(0xFF64748B)),
+              labelLarge: TextStyle(
+                  color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+              labelMedium: TextStyle(color: Color(0xFF334155)),
+              labelSmall: TextStyle(color: Color(0xFF64748B)),
+            ),
+            cardTheme: CardThemeData(
+              color: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+            ),
+            bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: Colors.white,
+              modalBackgroundColor: Colors.white,
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Colors.white,
             ),
           ),
           darkTheme: ThemeData(
+            useMaterial3: true,
             brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF121217),
+            scaffoldBackgroundColor: const Color(0xFF121212),
             fontFamily: 'sans-serif',
-            colorScheme: ColorScheme.fromSeed(
-              brightness: Brightness.dark,
-              seedColor: const Color(0xFF4C6EF5),
-              primary: const Color(0xFF4C6EF5),
-              secondary: const Color(0xFFFFC436),
-              surface: const Color(0xFF1E1E26),
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF314BB5), // Deep Blue utama dipertahankan
+              onPrimary: Colors.white,
+              secondary: Color(0xFFFFC436),
+              onSecondary: Colors.black,
+              surface: Color(0xFF1E1E1E), // Latar kartu/wadah gelap
+              onSurface: Colors.white, // Teks putih untuk kontras tinggi
+              error: Color(0xFFEF4444),
+              onError: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              displayLarge:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              displayMedium:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              displaySmall:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              headlineLarge:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              headlineMedium:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              headlineSmall:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              titleLarge:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              titleMedium:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              titleSmall: TextStyle(
+                  color: Color(0xFFE4E4E7), fontWeight: FontWeight.w600),
+              bodyLarge: TextStyle(color: Colors.white),
+              bodyMedium: TextStyle(color: Color(0xFFE4E4E7)),
+              bodySmall: TextStyle(color: Color(0xFFA1A1AA)),
+              labelLarge:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              labelMedium: TextStyle(color: Color(0xFFE4E4E7)),
+              labelSmall: TextStyle(color: Color(0xFFA1A1AA)),
+            ),
+            cardTheme: CardThemeData(
+              color: const Color(0xFF1E1E1E),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+            ),
+            bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: Color(0xFF1E1E1E),
+              modalBackgroundColor: Color(0xFF1E1E1E),
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF1E1E1E),
             ),
           ),
           home: authService.currentUser != null

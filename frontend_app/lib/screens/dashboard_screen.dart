@@ -3,14 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../services/api_config.dart';
-import '../theme/neo_colors.dart';
+import '../services/history_service.dart';
 import '../theme/theme_controller.dart';
-import '../widgets/neo_button.dart';
-import '../widgets/neo_card.dart';
-import '../widgets/offset_canvas_box.dart';
 import 'stage1_mental_screen.dart';
 import 'history_screen.dart';
 import 'anti_zombie_recipe_screen.dart';
+
+// --- PANDUAN GAYA DARI DESAIN MINIMAL ANDROID UI (HTML & SCREENSHOT) ---
+const Color _kAppBg = Color(0xFFF2F1EB);
+const Color _kAppPrimaryLight = Color(0xFFE8ECFA);
+const Color _kAppGray = Color(0xFF5C5C5C);
+const Color _kAppGrayLight = Color(0xFF8E8E93);
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,7 +24,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _profile;
-  bool _isLoadingProfile = true;
 
   @override
   void initState() {
@@ -32,11 +34,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Memuat skor pemulihan & status skrining terbaru dari MySQL (via backend Go)
   Future<void> _loadProfile() async {
     final data = await authService.refreshProfile();
+    // Ambil (GET) riwayat diagnosis terbaru dari backend Go MySQL
+    try {
+      await HistoryService.getHistoryList();
+    } catch (_) {}
     if (!mounted) return;
 
     setState(() {
       _profile = data;
-      _isLoadingProfile = false;
     });
   }
 
@@ -55,91 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  String get _conditionText {
-    if (_isLoadingProfile) return 'Memuat kondisi terbaru...';
-    final int total = (_profile?['total_screenings'] as num?)?.toInt() ?? 0;
-    if (total == 0) return 'Kondisi: Belum Ada Skrining';
-
-    final latest = _profile?['latest_screening'];
-    if (latest is Map && latest['kategori_burnout'] != null) {
-      return 'Terakhir: ${latest['kategori_burnout']}';
-    }
-    return _profile == null
-        ? 'Kondisi: Server belum terhubung'
-        : 'Kondisi: Siap Skrining';
-  }
-
-  // --- KARTU SKOR PEMULIHAN (DINAMIS DARI MYSQL) ---
-  Widget _buildRecoveryCard() {
-    final isDark = themeController.isDarkMode;
-    final user = authService.currentUser;
-    final int total = (_profile?['total_screenings'] as num?)?.toInt() ?? 0;
-    final int done = (_profile?['recipes_completed'] as num?)?.toInt() ?? 0;
-    final int allRecipes = (_profile?['recipes_total'] as num?)?.toInt() ?? 0;
-    final bool connected = _profile != null;
-
-    final int displayScore = total == 0 ? 50 : (user?.recoveryScore ?? 50).clamp(0, 100);
-    final String stageName = total == 0 ? 'Belum Ada Skrining' : _stageLabel(user?.zombieStage ?? '');
-
-    return NeoCard(
-      backgroundColor: isDark ? const Color(0xFF1E1E26) : NeoColors.white,
-      borderRadius: 20,
-      shadowOffset: 4,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Skor Pemulihan',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: isDark ? Colors.white : NeoColors.black,
-                  ),
-                ),
-              ),
-              Text(
-                connected ? '$displayScore/100' : '-/100',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: NeoColors.primaryBlue,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: connected ? displayScore / 100 : 0,
-              minHeight: 12,
-              backgroundColor: isDark ? const Color(0xFF2E2E3E) : const Color(0xFFE5E7EB),
-              valueColor: const AlwaysStoppedAnimation<Color>(NeoColors.primaryBlue),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            connected
-                ? (total == 0
-                    ? '0 skrining • 0/0 resep selesai • Jalankan skrining pertama Anda'
-                    : '$stageName • $total skrining • $done/$allRecipes resep selesai')
-                : 'Hubungkan backend (port 8081) untuk memuat skor pemulihan Anda.',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              color: isDark ? const Color(0xFFA1A1AA) : NeoColors.darkGray,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- MODAL: PROFIL & AKUN LENGKAP DENGAN EDIT NAMA & PENGATURAN BASE URL ---
+  // --- MODAL: PROFIL & AKUN LENGKAP DENGAN EDIT NAMA & PENGATURAN BASE URL (MODERN CLEAN) ---
   void _showProfileModal(BuildContext context) {
     final user = authService.currentUser;
     final int total = (_profile?['total_screenings'] as num?)?.toInt() ?? 0;
@@ -151,202 +72,584 @@ class _DashboardScreenState extends State<DashboardScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (bottomSheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            final activeUrl = ApiConfig.baseUrl;
-            final isDarkModal = themeController.isDarkMode;
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: themeController.themeModeNotifier,
+          builder: (modalCtx, currentThemeMode, _) {
+            return StatefulBuilder(
+              builder: (ctx, setModalState) {
+                final theme = Theme.of(ctx);
+                final colorScheme = theme.colorScheme;
+                final textTheme = theme.textTheme;
+                final activeUrl = ApiConfig.baseUrl;
+                final isDarkModal = currentThemeMode == ThemeMode.dark;
 
-            return Container(
-              decoration: BoxDecoration(
-                color: isDarkModal ? const Color(0xFF16161E) : NeoColors.background,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                border: const Border(
-                  top: BorderSide(color: NeoColors.borderBlack, width: 3),
-                  left: BorderSide(color: NeoColors.borderBlack, width: 3),
-                  right: BorderSide(color: NeoColors.borderBlack, width: 3),
-                ),
-              ),
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 16,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: NeoColors.borderBlack.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                return Container(
+                  decoration: BoxDecoration(
+                    color: isDarkModal ? colorScheme.surface : Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDarkModal ? 0.35 : 0.15),
+                        blurRadius: 30,
+                        offset: const Offset(0, -10),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Header Modal
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ],
+                  ),
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 16,
+                    bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Profil & Akun Pengguna',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: NeoColors.primaryBlue,
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () => Navigator.pop(ctx),
-                          borderRadius: BorderRadius.circular(10),
+                        // Handle Bar
+                        Center(
                           child: Container(
-                            padding: const EdgeInsets.all(6),
+                            width: 44,
+                            height: 5,
                             decoration: BoxDecoration(
-                              color: NeoColors.white,
+                              color: isDarkModal
+                                  ? Colors.white.withValues(alpha: 0.25)
+                                  : _kAppGrayLight.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: NeoColors.borderBlack, width: 1.5),
                             ),
-                            child: const Icon(Icons.close_rounded, size: 18),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
+                        const SizedBox(height: 18),
 
-                    // 1. KARTU INFORMASI AKUN
-                    NeoCard(
-                      backgroundColor: NeoColors.white,
-                      borderRadius: 18,
-                      shadowOffset: 3,
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              color: NeoColors.primaryYellow,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: NeoColors.borderBlack, width: 2.5),
-                              boxShadow: const [
-                                BoxShadow(color: NeoColors.borderBlack, offset: Offset(2, 2)),
-                              ],
+                        // Header Modal
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Profil & Akun Pengguna',
+                              style: textTheme.titleLarge?.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDarkModal ? Colors.white : colorScheme.primary,
+                                letterSpacing: -0.2,
+                              ),
                             ),
-                            child: const Center(
-                              child: Icon(Icons.person_rounded, size: 34, color: NeoColors.black),
+                            InkWell(
+                              onTap: () => Navigator.pop(ctx),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isDarkModal ? const Color(0xFF2E2E2E) : _kAppPrimaryLight.withValues(alpha: 0.6),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: isDarkModal ? Colors.white : colorScheme.primary,
+                                ),
+                              ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 1. KARTU INFORMASI AKUN (Modern Clean)
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: isDarkModal ? const Color(0xFF262626) : _kAppPrimaryLight.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(28),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colorScheme.primary.withValues(alpha: 0.3),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.person_outline_rounded, size: 28, color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            user?.displayName ?? 'Pengguna Somatic',
+                                            style: textTheme.titleMedium?.copyWith(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDarkModal ? Colors.white : colorScheme.primary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () => _showEditNameDialog(context, setModalState),
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.primary.withValues(alpha: isDarkModal ? 0.25 : 0.1),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(Icons.edit_rounded, size: 14, color: isDarkModal ? Colors.white : colorScheme.primary),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      user?.email ?? 'Akun Lokal / Demo',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        fontSize: 12,
+                                        color: isDarkModal ? const Color(0xFFA1A1AA) : _kAppGray,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: isDarkModal ? const Color(0xFF1E1E1E) : colorScheme.primary.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            'ID #${(user?.userId ?? 1).toString().padLeft(3, '0')}',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDarkModal ? Colors.white : colorScheme.primary,
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: isDarkModal ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            _stageLabel(user?.zombieStage ?? ''),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDarkModal ? const Color(0xFF34D399) : const Color(0xFF047857),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 2. RINGKASAN STATISTIK
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMiniStatCard(ctx, 'Sesi Skrining', '$total Sesi', Icons.history_rounded, colorScheme.primary, isDarkModal),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildMiniStatCard(ctx, 'Skor Pemulihan', '$score/100', Icons.battery_charging_full_rounded, const Color(0xFF059669), isDarkModal),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildMiniStatCard(ctx, 'Resep Selesai', '$done Selesai', Icons.task_alt_rounded, const Color(0xFFD97706), isDarkModal),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 3. PENGATURAN TAMPILAN / TEMA APLIKASI
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: isDarkModal ? const Color(0xFF262626) : Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDarkModal
+                                    ? Colors.black.withValues(alpha: 0.25)
+                                    : colorScheme.primary.withValues(alpha: 0.06),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        isDarkModal ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                                        size: 20,
+                                        color: colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Mode Gelap (Dark Mode)',
+                                        style: textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: isDarkModal ? Colors.white : colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  // Switch Mode Gelap Terhubung Langsung ke State
+                                  Switch.adaptive(
+                                    value: isDarkModal,
+                                    activeThumbColor: Colors.white,
+                                    activeTrackColor: colorScheme.primary,
+                                    inactiveThumbColor: Colors.white,
+                                    inactiveTrackColor: const Color(0xFFD1D5DB),
+                                    onChanged: (bool value) async {
+                                      await themeController.setThemeMode(
+                                        value ? ThemeMode.dark : ThemeMode.light,
+                                      );
+                                      setModalState(() {});
+                                      setState(() {});
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Pilih mode tampilan terang (Light Mode) atau gelap (Dark Mode).',
+                                style: textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: isDarkModal ? const Color(0xFFA1A1AA) : _kAppGray,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  // Tombol Mode Terang
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () async {
+                                        await themeController.setThemeMode(ThemeMode.light);
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                                        decoration: BoxDecoration(
+                                          color: !isDarkModal ? colorScheme.primary : (isDarkModal ? const Color(0xFF1E1E1E) : _kAppBg),
+                                          borderRadius: BorderRadius.circular(20),
+                                          boxShadow: !isDarkModal
+                                              ? [
+                                                  BoxShadow(
+                                                    color: colorScheme.primary.withValues(alpha: 0.3),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Icon(
+                                              Icons.wb_sunny_rounded,
+                                              color: !isDarkModal ? Colors.white : const Color(0xFFD97706),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Tema Terang',
+                                              style: textTheme.bodyMedium?.copyWith(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                color: !isDarkModal ? Colors.white : (isDarkModal ? Colors.white : colorScheme.primary),
+                                              ),
+                                            ),
+                                            Text(
+                                              'Light Mode',
+                                              style: textTheme.bodySmall?.copyWith(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                                color: !isDarkModal ? Colors.white.withValues(alpha: 0.8) : _kAppGrayLight,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  // Tombol Mode Gelap
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () async {
+                                        await themeController.setThemeMode(ThemeMode.dark);
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                                        decoration: BoxDecoration(
+                                          color: isDarkModal ? colorScheme.primary : _kAppBg,
+                                          borderRadius: BorderRadius.circular(20),
+                                          boxShadow: isDarkModal
+                                              ? [
+                                                  BoxShadow(
+                                                    color: colorScheme.primary.withValues(alpha: 0.35),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Icon(
+                                              Icons.nightlight_round,
+                                              color: isDarkModal ? Colors.white : _kAppGray,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Tema Gelap',
+                                              style: textTheme.bodyMedium?.copyWith(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                color: isDarkModal ? Colors.white : colorScheme.primary,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Dark Mode',
+                                              style: textTheme.bodySmall?.copyWith(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                                color: isDarkModal ? Colors.white.withValues(alpha: 0.8) : _kAppGrayLight,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // 4. PENGATURAN KONEKSI SERVER (BASE URL API)
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: isDarkModal ? const Color(0xFF262626) : Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDarkModal
+                                    ? Colors.black.withValues(alpha: 0.25)
+                                    : colorScheme.primary.withValues(alpha: 0.06),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.dns_rounded, size: 18, color: colorScheme.primary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Koneksi Server Backend (Base URL)',
+                                      style: textTheme.titleSmall?.copyWith(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDarkModal ? Colors.white : colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Ubah alamat IP jika berpindah Wi-Fi/Hotspot tanpa perlu build ulang APK.',
+                                style: textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: isDarkModal ? const Color(0xFFA1A1AA) : _kAppGray,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isDarkModal ? const Color(0xFF1E1E1E) : _kAppBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.link_rounded, size: 16, color: colorScheme.primary),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        user?.displayName ?? 'Pengguna Somatic',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          color: NeoColors.black,
+                                        activeUrl,
+                                        style: textTheme.bodySmall?.copyWith(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'monospace',
+                                          color: isDarkModal ? Colors.white : colorScheme.primary,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    InkWell(
-                                      onTap: () => _showEditNameDialog(context, setModalState),
-                                      borderRadius: BorderRadius.circular(8),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () => _showEditBaseUrlDialog(context, setModalState),
+                                      borderRadius: BorderRadius.circular(20),
                                       child: Container(
-                                        padding: const EdgeInsets.all(4),
+                                        padding: const EdgeInsets.symmetric(vertical: 11),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFEF3C7),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: NeoColors.borderBlack, width: 1),
+                                          color: colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(20),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: colorScheme.primary.withValues(alpha: 0.28),
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
                                         ),
-                                        child: const Icon(Icons.edit_rounded, size: 14, color: NeoColors.black),
+                                        child: const Center(
+                                          child: Text(
+                                            'Ganti Alamat Server',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  user?.email ?? 'Akun Lokal / Demo',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: NeoColors.darkGray,
-                                    fontWeight: FontWeight.w600,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () => _testServerConnection(context),
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 11),
+                                        decoration: BoxDecoration(
+                                          color: isDarkModal ? const Color(0xFF1E1E1E) : _kAppPrimaryLight,
+                                          borderRadius: BorderRadius.circular(24),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: colorScheme.primary.withValues(alpha: isDarkModal ? 0.2 : 0.08),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            'Uji Koneksi (Ping)',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDarkModal ? Colors.white : colorScheme.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+
+                        // 5. TOMBOL LOGOUT (Clean pill shape, soft shadow)
+                        InkWell(
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            await authService.signOut();
+                            if (context.mounted) {
+                              Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(28),
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFEF4444).withValues(alpha: 0.28),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
                                 ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: NeoColors.primaryBlue.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'ID #${(user?.userId ?? 1).toString().padLeft(3, '0')}',
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          color: NeoColors.primaryBlue,
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: NeoColors.greenLight,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        _stageLabel(user?.zombieStage ?? ''),
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          color: NeoColors.greenDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.logout_rounded, color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Keluar dari Akun (Logout)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // 2. RINGKASAN STATISTIK
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMiniStatCard('Sesi Skrining', '$total Sesi', Icons.history_rounded, NeoColors.primaryBlue),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildMiniStatCard('Skor Pemulihan', '$score/100', Icons.battery_charging_full_rounded, NeoColors.greenDark),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildMiniStatCard('Resep Selesai', '$done Selesai', Icons.task_alt_rounded, NeoColors.amber),
                         ),
                       ],
                     ),
+<<<<<<< HEAD
                     const SizedBox(height: 18),
 
                     // 3. PENGATURAN TAMPILAN / TEMA APLIKASI
@@ -632,6 +935,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+=======
+                  ),
+                );
+              },
+>>>>>>> a1a8fca2560d72dceac339151708fc4463a0aa0e
             );
           },
         );
@@ -639,36 +947,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMiniStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildMiniStatCard(BuildContext context, String label, String value, IconData icon, Color color, [bool isDark = false]) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: NeoColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: NeoColors.borderBlack, width: 1.5),
-        boxShadow: const [
-          BoxShadow(color: NeoColors.borderBlack, offset: Offset(1.5, 1.5)),
+        color: isDark ? const Color(0xFF262626) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.2)
+                : colorScheme.primary.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
         children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 4),
+          Icon(icon, size: 22, color: color),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: textTheme.titleSmall?.copyWith(
               fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: NeoColors.black,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : colorScheme.primary,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
+            style: textTheme.bodySmall?.copyWith(
               fontSize: 9,
-              fontWeight: FontWeight.bold,
-              color: NeoColors.darkGray,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFFA1A1AA) : _kAppGrayLight,
             ),
             textAlign: TextAlign.center,
           ),
@@ -677,42 +994,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Dialog Edit Nama
+  // Dialog Edit Nama (Modern Clean)
   void _showEditNameDialog(BuildContext context, StateSetter setModalState) {
     final textController = TextEditingController(text: authService.currentUser?.displayName ?? '');
+    final isDark = themeController.isDarkMode;
 
     showDialog(
       context: context,
       builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final colorScheme = theme.colorScheme;
+        final textTheme = theme.textTheme;
+
         return AlertDialog(
-          backgroundColor: NeoColors.background,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: NeoColors.borderBlack, width: 2),
+            borderRadius: BorderRadius.circular(32),
           ),
-          title: const Text('Edit Nama Lengkap', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          title: Text(
+            'Edit Nama Lengkap',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              color: isDark ? Colors.white : colorScheme.primary,
+            ),
+          ),
           content: TextField(
             controller: textController,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black),
             decoration: InputDecoration(
               hintText: 'Nama lengkap Anda',
+              hintStyle: TextStyle(color: isDark ? const Color(0xFFA1A1AA) : _kAppGrayLight),
               filled: true,
-              fillColor: NeoColors.white,
+              fillColor: isDark ? const Color(0xFF121212) : _kAppBg,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: NeoColors.borderBlack, width: 2),
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
               ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal', style: TextStyle(color: NeoColors.darkGray)),
+              child: Text(
+                'Batal',
+                style: TextStyle(color: isDark ? const Color(0xFFA1A1AA) : _kAppGray, fontWeight: FontWeight.w600),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: NeoColors.primaryBlue,
-                foregroundColor: NeoColors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               ),
               onPressed: () async {
                 final newName = textController.text.trim();
@@ -724,7 +1068,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   setState(() {});
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nama berhasil diperbarui!'), backgroundColor: NeoColors.greenDark),
+                      const SnackBar(
+                        content: Text('Nama berhasil diperbarui!'),
+                        backgroundColor: Color(0xFF059669),
+                      ),
                     );
                   }
                 }
@@ -737,48 +1084,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Dialog Edit Base URL API
+  // Dialog Edit Base URL API (Modern Clean)
   void _showEditBaseUrlDialog(BuildContext context, StateSetter setModalState) {
     final textController = TextEditingController(text: ApiConfig.baseUrl);
+    final isDark = themeController.isDarkMode;
 
     showDialog(
       context: context,
       builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final colorScheme = theme.colorScheme;
+        final textTheme = theme.textTheme;
+
         return AlertDialog(
-          backgroundColor: NeoColors.background,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: NeoColors.borderBlack, width: 2),
+            borderRadius: BorderRadius.circular(32),
           ),
-          title: const Text('Ubah Base URL API', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          title: Text(
+            'Ubah Base URL API',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              color: isDark ? Colors.white : colorScheme.primary,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Masukkan URL Backend Go (misal http://192.168.x.x:8081):', style: TextStyle(fontSize: 12, color: NeoColors.darkGray)),
-              const SizedBox(height: 8),
+              Text(
+                'Masukkan URL Backend Go (misal http://192.168.x.x:8081):',
+                style: textTheme.bodySmall?.copyWith(fontSize: 12, color: isDark ? const Color(0xFFA1A1AA) : _kAppGray),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: textController,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
                 decoration: InputDecoration(
                   hintText: 'http://192.168.18.12:8081',
+                  hintStyle: TextStyle(color: isDark ? const Color(0xFFA1A1AA) : _kAppGrayLight),
                   filled: true,
-                  fillColor: NeoColors.white,
+                  fillColor: isDark ? const Color(0xFF121212) : _kAppBg,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: NeoColors.borderBlack, width: 2),
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   ActionChip(
-                    label: const Text('Localhost (8081)', style: TextStyle(fontSize: 10)),
+                    label: Text(
+                      'Localhost (8081)',
+                      style: TextStyle(fontSize: 10, color: isDark ? Colors.white : colorScheme.primary, fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: isDark ? const Color(0xFF2A2A2A) : _kAppPrimaryLight,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     onPressed: () => textController.text = 'http://localhost:8081',
                   ),
                   ActionChip(
-                    label: const Text('Wi-Fi Laptop (192.168.18.12)', style: TextStyle(fontSize: 10)),
+                    label: Text(
+                      'Wi-Fi Laptop (192.168.18.12)',
+                      style: TextStyle(fontSize: 10, color: isDark ? Colors.white : colorScheme.primary, fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: isDark ? const Color(0xFF2A2A2A) : _kAppPrimaryLight,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     onPressed: () => textController.text = 'http://192.168.18.12:8081',
                   ),
                 ],
@@ -788,13 +1173,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal', style: TextStyle(color: NeoColors.darkGray)),
+              child: Text(
+                'Batal',
+                style: TextStyle(color: isDark ? const Color(0xFFA1A1AA) : _kAppGray, fontWeight: FontWeight.w600),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: NeoColors.primaryBlue,
-                foregroundColor: NeoColors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               ),
               onPressed: () async {
                 final url = textController.text.trim();
@@ -804,7 +1194,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 await _loadProfile();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Alamat server diatur ke: ${ApiConfig.baseUrl}')),
+                    SnackBar(
+                      content: Text('Alamat server diatur ke: ${ApiConfig.baseUrl}'),
+                      backgroundColor: colorScheme.primary,
+                    ),
                   );
                 }
               },
@@ -828,484 +1221,794 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Terhubung! MySQL: $dbStatus • Python AI: ${pyStatus ? "Online" : "Offline"}'),
-            backgroundColor: NeoColors.greenDark,
+            backgroundColor: const Color(0xFF059669),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('⚠️ Server merespons HTTP ${res.statusCode}'), backgroundColor: NeoColors.amber),
+          SnackBar(content: Text('⚠️ Server merespons HTTP ${res.statusCode}'), backgroundColor: const Color(0xFFD97706)),
         );
       }
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Gagal menghubungi server: $e'), backgroundColor: NeoColors.redDark),
+        SnackBar(content: Text('❌ Gagal menghubungi server: $e'), backgroundColor: const Color(0xFFDC2626)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = themeController.isDarkMode;
-    final Color scaffoldBg = isDark ? const Color(0xFF121217) : NeoColors.background;
-    final Color cardBg = isDark ? const Color(0xFF1E1E26) : NeoColors.white;
-    final Color textMain = isDark ? Colors.white : NeoColors.black;
-    final Color textSub = isDark ? const Color(0xFFA1A1AA) : NeoColors.darkGray;
-    final Color borderCol = isDark ? const Color(0xFF38384A) : NeoColors.borderBlack;
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeController.themeModeNotifier,
+      builder: (context, themeMode, _) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final textTheme = theme.textTheme;
+        final bool isDark = themeMode == ThemeMode.dark;
+        final Color scaffoldBg = theme.scaffoldBackgroundColor;
 
-    final String userName = authService.currentUser?.displayName?.isNotEmpty == true
-        ? authService.currentUser!.displayName!
-        : "Budi Santoso";
+        final String userName = authService.currentUser?.displayName?.isNotEmpty == true
+            ? authService.currentUser!.displayName!
+            : "User Lorem Ipsum";
 
-    final int done = (_profile?['recipes_completed'] as num?)?.toInt() ?? 0;
-    final int allRecipes = (_profile?['recipes_total'] as num?)?.toInt() ?? 0;
+        final user = authService.currentUser;
+        final String userSub = user != null
+            ? "ID #${user.userId.toString().padLeft(3, '0')}"
+            : "ID Lorem Ipsum";
 
-    return Scaffold(
-      backgroundColor: scaffoldBg,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadProfile,
-          color: NeoColors.primaryBlue,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header: Avatar (Klik untuk Buka Profil & Akun) + User Info + Notification Bell + Logout
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+        final int recoveryScore = (user?.recoveryScore ?? 65).clamp(0, 100);
+
+        return Scaffold(
+          backgroundColor: scaffoldBg,
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _loadProfile,
+              color: colorScheme.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Foto Profil / Avatar (DAPAT DIKLIK)
-                    InkWell(
-                      onTap: () => _showProfileModal(context),
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: NeoColors.primaryYellow,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: borderCol,
-                            width: 2.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: borderCol,
-                              offset: const Offset(3, 3),
-                              blurRadius: 0,
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: NeoColors.black,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Info Pengguna
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => _showProfileModal(context),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "Halo, $userName",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: textMain,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _conditionText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: textSub,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Lonceng Notifikasi
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: borderCol,
-                          width: 2.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: borderCol,
-                            offset: const Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          Icons.notifications_active_outlined,
-                          color: textMain,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text(
-                                "Pengingat skrining aktif setiap jam 19.00 WIB",
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              backgroundColor: NeoColors.slateDark,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(
-                                  color: NeoColors.borderBlack,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    // Tombol Buka Profil / Pengaturan
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: borderCol,
-                          width: 2.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: borderCol,
-                            offset: const Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        tooltip: "Pengaturan & Akun",
-                        icon: const Icon(
-                          Icons.settings_outlined,
-                          color: NeoColors.black,
-                          size: 20,
-                        ),
-                        onPressed: () => _showProfileModal(context),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 22),
-
-                // THE SIGNATURE "OFFSET CANVAS"
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double canvasWidth = (constraints.maxWidth - 12).clamp(240.0, 360.0);
-                    final double canvasHeight = (canvasWidth * 0.82).clamp(190.0, 250.0);
-
-                    return OffsetCanvasBox(
-                      width: canvasWidth,
-                      height: canvasHeight,
-                      backgroundColor: NeoColors.primaryBlue,
-                      outlineColor: NeoColors.primaryBlue,
-                      borderRadius: 32,
-                      offset: 10,
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // 1. TOP HEADER BAR: Profile Avatar + User Info (Clickable) + Notification Bell (Outline)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Profile Info (Clickable -> Opens Modal)
+                        InkWell(
+                          onTap: () => _showProfileModal(context),
+                          borderRadius: BorderRadius.circular(24),
+                          child: Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
+                                width: 44,
+                                height: 44,
                                 decoration: BoxDecoration(
-                                  color: NeoColors.primaryYellow,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: NeoColors.borderBlack,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.auto_awesome,
-                                      size: 14,
-                                      color: NeoColors.black,
-                                    ),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      "AI AGENT",
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        color: NeoColors.black,
-                                      ),
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colorScheme.primary.withValues(alpha: 0.28),
+                                      offset: const Offset(0, 4),
+                                      blurRadius: 10,
                                     ),
                                   ],
                                 ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.person_outline_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
                               ),
-                              Row(
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.star,
-                                      color: NeoColors.primaryYellow, size: 20),
-                                  const SizedBox(width: 6),
-                                  Tooltip(
-                                    message: isDark ? "Beralih ke Tema Terang" : "Beralih ke Tema Gelap",
-                                    child: InkWell(
-                                      onTap: () async {
-                                        await themeController.toggleTheme();
-                                        setState(() {});
-                                      },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(
-                                          isDark ? Icons.wb_sunny_rounded : Icons.dark_mode,
-                                          color: isDark ? NeoColors.primaryYellow : Colors.white,
-                                          size: 18,
-                                        ),
-                                      ),
+                                  Text(
+                                    userName,
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : colorScheme.primary,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    userSub,
+                                    style: textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark
+                                          ? const Color(0xFFA1A1AA)
+                                          : colorScheme.primary.withValues(alpha: 0.70),
                                     ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
+                        ),
 
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                width: 2,
+                        // Notification Bell (Outline - Clickable -> SnackBar as tested in test 5)
+                        IconButton(
+                          icon: Icon(
+                            Icons.notifications_active_outlined,
+                            color: isDark ? Colors.white : colorScheme.primary,
+                            size: 26,
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  "Pengingat skrining aktif setiap jam 19.00 WIB",
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                backgroundColor: isDark ? const Color(0xFF262626) : const Color(0xFF1E293B),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.insights_rounded,
-                              size: 50,
-                              color: NeoColors.white,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 2. CARD UTAMA: SKRINING SELANJUTNYA (Modern Clean Layered Contour)
+                    SizedBox(
+                      height: 330,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Layer 1: Background offset contour frame (Deep Blue Modern Clean)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(38),
+                                border: Border.all(color: colorScheme.primary, width: 2.2),
+                              ),
                             ),
                           ),
 
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 7,
-                              horizontal: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: NeoColors.black,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              "3 Tahap: Coretan • Gerak • Wajah",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: NeoColors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.4,
+                          // Layer 2: Main deep blue card
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 8,
+                            bottom: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: BorderRadius.circular(38),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withValues(alpha: 0.28),
+                                    offset: const Offset(0, 12),
+                                    blurRadius: 26,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  // Top: White Dot + "Skrining Selanjutnya"
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Expanded(
+                                        child: Text(
+                                          "Skrining Selanjutnya",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Center: Giant Time "1 Pm." and Date
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Row(
+                                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                                        textBaseline: TextBaseline.alphabetic,
+                                        children: [
+                                          Text(
+                                            "1",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 72,
+                                              fontWeight: FontWeight.w900,
+                                              height: 0.95,
+                                              letterSpacing: -2.0,
+                                            ),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            "Pm.",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 34,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        "21, Oktober",
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.92),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Bottom: Progress Bar inside card only
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Progress Resep Anti-Zombi",
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.9),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        height: 8,
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.25),
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                        alignment: Alignment.centerLeft,
+                                        child: FractionallySizedBox(
+                                          widthFactor: (recoveryScore / 100).clamp(0.20, 1.0),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 18),
-
-                Center(
-                  child: Text(
-                    "EMO-SENSE AI",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? const Color(0xFF60A5FA) : NeoColors.primaryBlue,
-                      letterSpacing: 0.5,
                     ),
-                  ),
-                ),
-                Center(
-                  child: Text(
-                    "Deteksi dini kelelahan & pulihkan energi somatik Anda",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: textSub,
-                    ),
-                  ),
-                ),
 
-                const SizedBox(height: 24),
+                    const SizedBox(height: 26),
 
-                // GIANT NEO BUTTON 1: "Mulai Skrining"
-                NeoButton(
-                  text: "🚀 Mulai Skrining Mandiri",
-                  icon: Icons.play_arrow_rounded,
-                  backgroundColor: NeoColors.primaryBlue,
-                  textColor: NeoColors.white,
-                  height: 56,
-                  borderRadius: 28,
-                  shadowOffset: 6,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const Stage1MentalScreen(),
-                      ),
-                    ).then((_) => _loadProfile());
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // SECONDARY BUTTON 2: "Riwayat & Tren Emosi"
-                NeoButton(
-                  text: "📋 Riwayat & Tren Emosi",
-                  icon: Icons.history_rounded,
-                  backgroundColor: isDark ? const Color(0xFF282836) : NeoColors.darkGray,
-                  textColor: NeoColors.white,
-                  height: 50,
-                  borderRadius: 25,
-                  shadowOffset: 5,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HistoryScreen(),
-                      ),
-                    ).then((_) => _loadProfile());
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // TERTIARY BUTTON 3: "Resep Anti-Zombi" (SETARA DENGAN 2 TOMBOL DI ATASNYA)
-                NeoButton(
-                  text: "💊 Resep Anti-Zombi ($done/$allRecipes)",
-                  icon: Icons.medication_rounded,
-                  backgroundColor: NeoColors.primaryYellow,
-                  textColor: NeoColors.borderBlack,
-                  height: 50,
-                  borderRadius: 25,
-                  shadowOffset: 5,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AntiZombieRecipeScreen(),
-                      ),
-                    ).then((_) => _loadProfile());
-                  },
-                ),
-
-                const SizedBox(height: 20),
-
-                // SKOR PEMULIHAN (DATA NYATA MYSQL)
-                _buildRecoveryCard(),
-
-                const SizedBox(height: 18),
-
-                // Status Info Box
-                NeoCard(
-                  backgroundColor: cardBg,
-                  borderRadius: 18,
-                  shadowOffset: 3,
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderCol, width: 1.8),
-                        ),
-                        child: const Icon(
-                          Icons.timer_outlined,
-                          color: NeoColors.black,
-                          size: 22,
+                    // 3. BAGIAN DESTRESS ("EMO-SENSE AI", "Destress", "Maintain your emotions")
+                    Center(
+                      child: Text(
+                        "EMO-SENSE AI",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                          color: isDark ? const Color(0xFFA1A1AA) : colorScheme.primary.withValues(alpha: 0.55),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    const SizedBox(height: 2),
+                    Center(
+                      child: Text(
+                        "Destress",
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : colorScheme.primary,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Center(
+                      child: Text(
+                        "Maintain your emotions",
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? const Color(0xFFE4E4E7) : colorScheme.primary.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 4. PROTOKOL ISTIRAHAT HEADER
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              "Estimasi Waktu Skrining",
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
+                              "Protokol Istirahat",
+                              style: textTheme.titleSmall?.copyWith(
                                 fontSize: 13,
-                                color: textMain,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : colorScheme.primary,
+                                letterSpacing: -0.2,
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                                    offset: const Offset(0, 1),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                "2 Langkah",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          "Aktif Sekarang",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFE4E4E7) : colorScheme.primary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // 5. CARD PROTOKOL ISTIRAHAT: DETOKS LAYAR
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.primary.withValues(alpha: 0.28),
+                            offset: const Offset(0, 10),
+                            blurRadius: 24,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Center(
+                                  child: _DetoxPhoneIcon(color: Colors.white, size: 24),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "LANGKAH 01 • AKTIF",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      "Detoks Layar",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.08),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  "15 Menit",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            "Letakkan perangkat atau aktifkan mode monokrom.\nIstirahatkan korteks visual dari stimulasi cahaya biru berlebih.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.only(top: 10),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: Colors.white.withValues(alpha: 0.4),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      "Catatan perasaan (opsional)...",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                InkWell(
+                                  onTap: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text("Detoks layar selesai! Hebat."),
+                                        backgroundColor: colorScheme.primary,
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.10),
+                                          offset: const Offset(0, 2),
+                                          blurRadius: 6,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      "Selesaikan",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDark ? Colors.white : colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                  offset: const Offset(0, -4),
+                  blurRadius: 16,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 72,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    // Left & Right Navigation Tabs
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Tab 1: Riwayat
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const HistoryScreen()),
+                              ).then((_) => _loadProfile());
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.menu_book_outlined, size: 24, color: isDark ? Colors.white : colorScheme.primary),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    "Riwayat",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Tab 2: Resep
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const AntiZombieRecipeScreen()),
+                              ).then((_) => _loadProfile());
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.auto_stories_outlined, size: 24, color: isDark ? Colors.white : colorScheme.primary),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    "Resep",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Center: Floating Button Melayang
+                    Positioned(
+                      top: -24,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const Stage1MentalScreen()),
+                          ).then((_) => _loadProfile());
+                        },
+                        borderRadius: BorderRadius.circular(36),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 58,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withValues(alpha: 0.35),
+                                    offset: const Offset(0, 6),
+                                    blurRadius: 16,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: CustomPaint(
+                                  size: Size(30, 30),
+                                  painter: _SomaticFigurePainter(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
                             Text(
-                              "Cukup 1-2 menit untuk 4 sensor multimodal lengkap.",
+                              "Skrining",
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
-                                color: textSub,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.white : colorScheme.primary,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
+}
+
+// --- CUSTOM LINE ART PAINTERS & WIDGETS ---
+
+class _SomaticFigurePainter extends CustomPainter {
+  final Color color;
+  const _SomaticFigurePainter({this.color = Colors.white});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Head
+    canvas.drawCircle(Offset(cx, cy - 13), 3.5, paint);
+
+    // Torso
+    canvas.drawLine(Offset(cx, cy - 9.5), Offset(cx, cy + 3), paint);
+
+    // Arms
+    final armPath = Path()
+      ..moveTo(cx - 13, cy - 3)
+      ..quadraticBezierTo(cx, cy - 6, cx + 13, cy - 3);
+    canvas.drawPath(armPath, paint);
+
+    // Legs
+    canvas.drawLine(Offset(cx, cy + 3), Offset(cx - 9, cy + 15), paint);
+    canvas.drawLine(Offset(cx, cy + 3), Offset(cx + 9, cy + 15), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _DetoxPhoneIcon extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _DetoxPhoneIcon({this.color = Colors.white, this.size = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _DetoxPhonePainter(color: color),
+    );
+  }
+}
+
+class _DetoxPhonePainter extends CustomPainter {
+  final Color color;
+  const _DetoxPhonePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+
+    final w = size.width;
+    final h = size.height;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.22, h * 0.1, w * 0.56, h * 0.8),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(rrect, paint);
+
+    paint.style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * 0.5, h * 0.8), 1.3, paint);
+
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 1.4;
+    canvas.drawLine(Offset(w * 0.38, h * 0.32), Offset(w * 0.62, h * 0.52), paint);
+    canvas.drawLine(Offset(w * 0.62, h * 0.32), Offset(w * 0.38, h * 0.52), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
