@@ -27,7 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -64,7 +65,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (success) {
         _showSnackBar(
-          message: "Registrasi berhasil! Silakan masuk menggunakan akun yang baru Anda daftarkan.",
+          message:
+              "Registrasi berhasil! Silakan masuk menggunakan akun yang baru Anda daftarkan.",
           isSuccess: true,
         );
         Navigator.pushReplacement(
@@ -112,18 +114,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: googleUser.email,
         name: googleUser.displayName,
         googleId: googleUser.googleId,
-<<<<<<< Updated upstream
-        setSession: true, // Langsung aktifkan sesi masuk dan menuju ke Dashboard
-=======
         setSession: false,
->>>>>>> Stashed changes
       );
 
       if (!mounted) return;
 
       if (success) {
         _showSnackBar(
-          message: "Akun Google ${googleUser.email} berhasil terdaftar dan masuk!",
+          message:
+              "Akun Google ${googleUser.email} berhasil terdaftar dan masuk!",
           isSuccess: true,
         );
         Navigator.pushNamedAndRemoveUntil(
@@ -152,7 +151,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _showSnackBar({required String message, bool isError = false, bool isSuccess = false}) {
+  void _showSnackBar(
+      {required String message, bool isError = false, bool isSuccess = false}) {
     Color bg = primaryBlue;
     if (isError) bg = const Color(0xFFEF4444);
     if (isSuccess) bg = const Color(0xFF10B981);
@@ -182,7 +182,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark || themeController.isDarkMode;
+    final isDark =
+        theme.brightness == Brightness.dark || themeController.isDarkMode;
     final textTheme = theme.textTheme;
 
     return Scaffold(
@@ -190,7 +191,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
@@ -209,15 +211,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
-                          color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+                          color: primaryBlue.withValues(
+                              alpha: isDark ? 0.25 : 0.08),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.person_add_outlined, size: 14, color: primaryBlue),
+                            Icon(Icons.person_add_outlined,
+                                size: 14, color: primaryBlue),
                             SizedBox(width: 6),
                             Text(
                               "REGISTRASI AKUN",
@@ -250,7 +255,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: textTheme.bodyMedium?.copyWith(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w500,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
                         height: 1.45,
                       ),
                     ),
@@ -311,7 +318,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _obscurePassword
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          color: isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B),
                           size: 20,
                         ),
                         onPressed: () {
@@ -346,7 +355,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _obscureConfirmPassword
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          color: isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B),
                           size: 20,
                         ),
                         onPressed: () {
@@ -393,7 +404,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                         GestureDetector(
@@ -515,7 +528,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: suffixIcon,
                 )
               : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(32),
             borderSide: BorderSide(
@@ -632,7 +646,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                color:
+                    isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 letterSpacing: 0.8,
               ),
             ),
@@ -690,7 +705,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Text(
                         "Daftar dengan Google",
                         style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          color:
+                              isDark ? Colors.white : const Color(0xFF1E293B),
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.2,
