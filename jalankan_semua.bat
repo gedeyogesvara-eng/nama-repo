@@ -7,7 +7,7 @@ start cmd /k "cd /d "%~dp0FIle AI\Mata-Suara" && python main.py"
 :: 2. Menjalankan Backend Utama Go di jendela baru
 start cmd /k "cd /d "%~dp0backend" && go run main.go"
 
-:: 3. Menjalankan Frontend Flutter di jendela baru
-start cmd /k "cd /d "%~dp0frontend_app" && flutter run"
+:: 3. Menjalankan Frontend Flutter di jendela baru (Port tetap 5000 untuk Google OAuth)
+start cmd /k "cd /d "%~dp0frontend_app" && flutter run -d chrome --web-port=5000"
 
 echo Semua sistem sedang berjalan!

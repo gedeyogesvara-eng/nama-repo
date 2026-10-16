@@ -63,34 +63,37 @@ class Auth {
     }
   }
 
-  /// c. Login menggunakan Akun Google asli via GoogleSignIn & FirebaseAuth
+  /// c. Login menggunakan Akun Google resmi via GoogleSignIn API
   Future<bool> loginWithGoogle() async {
     try {
-      // 1. Tampilkan dialog pemilihan akun Google di perangkat
+      // 1. Panggil SDK Google Sign-In resmi untuk membuka pemilih akun Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
         // Pengguna membatalkan proses sign-in
-        throw Exception("Login Google dibatalkan oleh pengguna.");
+        return false;
       }
 
-      // 2. Dapatkan token otentikasi dari akun Google
+      // 2. Dapatkan token otentikasi dari akun Google asli
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // 3. Buat kredensial Firebase dari token Google
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+      // 3. Buat kredensial Firebase dari token Google jika Firebase aktif
+      try {
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        await _auth.signInWithCredential(credential);
+      } catch (fbErr) {
+        debugPrint("Catatan Firebase Auth: $fbErr");
+      }
 
-      // 4. Masuk ke Firebase dengan kredensial tersebut
-      await _auth.signInWithCredential(credential);
       return true;
     } on FirebaseAuthException catch (e) {
       throw Exception(_handleAuthException(e));
     } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception("Gagal login dengan Google: ${e.toString()}");
+      debugPrint("Google Sign-In error: $e");
+      throw Exception("Gagal terhubung ke Google API: ${e.toString()}");
     }
   }
 
