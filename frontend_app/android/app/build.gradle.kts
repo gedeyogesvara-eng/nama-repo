@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.example.frontend_app"
     compileSdk = 37
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

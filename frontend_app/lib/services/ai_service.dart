@@ -15,7 +15,7 @@ import 'backend_service.dart';
 /// maupun Android/iOS tanpa `dart:io`.
 class AIService {
   static const String? ngrokUrl = null;
-  static const String localIPv4 = '192.168.18.41';
+  static const String localIPv4 = '192.168.18.12';
   static const String port = '8081';
   static const String apiPath = '/api/detect';
 

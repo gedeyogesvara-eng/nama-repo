@@ -49,10 +49,7 @@ class ApiConfig {
     }
     if (_override.isNotEmpty) return _override;
     if (kIsWeb) return desktopUrl;
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      // Gunakan emulatorUrl untuk Android Emulator, atau physicalDeviceUrl untuk HP fisik
-      return emulatorUrl;
-    }
-    return desktopUrl;
+    // Android / Mobile (kIsWeb == false) default ke IP Wi-Fi Laptop fisik
+    return physicalDeviceUrl;
   }
 }
