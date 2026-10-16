@@ -5,6 +5,8 @@ import urllib.request
 import tempfile
 import librosa
 from fastapi import FastAPI, UploadFile, File
+from pydantic import BaseModel
+from typing import List
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout, Conv1D, MaxPooling1D, Flatten
 from tensorflow.keras.models import Model, Sequential
@@ -12,6 +14,10 @@ from tensorflow.keras.preprocessing.image import img_to_array
 import uvicorn
 
 app = FastAPI(title="Somatic.AI Core Engine")
+
+# Skema data JSON yang diharapkan dari Frontend untuk Modul 3
+class SensorData(BaseModel):
+    sensor_data: List[List[float]]
 
 # ==========================================
 # KONFIGURASI MODUL 1: EYE ANALYSIS
@@ -55,6 +61,26 @@ model_audio = Sequential([
 ])
 model_audio.load_weights(WEIGHTS_AUDIO)
 
+# ==========================================
+# KONFIGURASI MODUL 3: ACTIVITY RECOGNITION
+# ==========================================
+WEIGHTS_ACTIVITY = "activity_weights.weights.h5"
+
+print("Membangun arsitektur 1D CNN (Aktivitas)...")
+model_activity = Sequential([
+    Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(150, 3)),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.3),
+    Conv1D(filters=128, kernel_size=3, activation='relu'),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.3),
+    Flatten(),
+    Dense(64, activation='relu'),
+    Dropout(0.3),
+    Dense(1, activation='sigmoid')
+])
+model_activity.load_weights(WEIGHTS_ACTIVITY)
+
 print("Somatic.AI Core Engine Siap Beroperasi!")
 
 # ==========================================
@@ -67,12 +93,24 @@ async def analyze_eye(file: UploadFile = File(...)):
         nparr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        if img is None: return {"status": "error", "message": "Gambar korup."}
+        if img is None: 
+            return {"status": "error", "message": "Gambar korup."}
+
+        # 1. FILTER GAMBAR HITAM/GELAP TOTAL
+        # Menghitung rata-rata intensitas piksel. Nilai 0 = hitam total, 255 = putih total.
+        mean_brightness = np.mean(img)
+        if mean_brightness < 15:  # Jika sangat gelap
+            return {"status": "success", "data": {"label": "Gambar terlalu gelap/hitam total", "confidence": 0}}
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        eyes = eye_cascade.detectMultiScale(gray, 1.3, 5)
         
-        if len(eyes) == 0: return {"status": "error", "message": "Mata tidak terdeteksi."}
+        # Penyesuaian parameter Haar Cascade agar lebih ketat (minNeighbors dinaikkan jadi 7)
+        eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=7)
+        
+        # 2. FILTER JIKA MATA TIDAK DITEMUKAN
+        if len(eyes) == 0: 
+            # Output diubah menjadi success agar Frontend tidak error, tapi labelnya spesifik
+            return {"status": "success", "data": {"label": "Mata tidak terdeteksi pada gambar", "confidence": 0}}
             
         (x, y, w, h) = eyes[0]
         padding = 10
@@ -121,6 +159,32 @@ async def analyze_audio(file: UploadFile = File(...)):
         prediction = float(model_audio.predict(mfcc_expanded, verbose=0)[0][0])
         
         label = "Indikasi Acoustic Burnout (Stres Tinggi)" if prediction > 0.5 else "Vokal Normal (Stabil)"
+        confidence = round(prediction * 100, 2) if prediction > 0.5 else round((1 - prediction) * 100, 2)
+            
+        return {"status": "success", "data": {"label": label, "confidence": confidence}}
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ==========================================
+# ENDPOINT MODUL 3
+# ==========================================
+@app.post("/api/analyze-activity")
+async def analyze_activity(data: SensorData):
+    try:
+        # Konversi JSON dari Flutter ke NumPy Array
+        sensor_array = np.array(data.sensor_data, dtype=np.float32)
+        
+        # Validasi dimensi (harus 150 baris, 3 kolom)
+        if sensor_array.shape != (150, 3):
+            return {"status": "error", "message": f"Dimensi data salah. Diharapkan (150, 3), diterima {sensor_array.shape}"}
+            
+        # Tambahkan dimensi batch (1, 150, 3)
+        input_data = np.expand_dims(sensor_array, axis=0)
+        # Prediksi
+        prediction = float(model_activity.predict(input_data, verbose=0)[0][0])
+        
+        label = "Berlari (Langkah Cepat/Guncangan Tinggi)" if prediction > 0.5 else "Berjalan (Langkah Stabil)"
         confidence = round(prediction * 100, 2) if prediction > 0.5 else round((1 - prediction) * 100, 2)
             
         return {"status": "success", "data": {"label": label, "confidence": confidence}}
