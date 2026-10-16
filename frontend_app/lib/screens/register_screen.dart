@@ -3,7 +3,6 @@ import '../services/auth_service.dart';
 import '../widgets/google_icon.dart';
 import '../widgets/google_auth_dialog.dart';
 import '../theme/theme_controller.dart';
-import 'dashboard_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {

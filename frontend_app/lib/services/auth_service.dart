@@ -4,11 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
-<<<<<<< HEAD
 import '../widgets/google_auth_dialog.dart';
-=======
 import 'backend_service.dart';
->>>>>>> a1a8fca2560d72dceac339151708fc4463a0aa0e
 
 /// ============================================================================
 /// AUTENTIKASI MELALUI BACKEND GO + MySQL DENGAN FALLBACK LOKAL

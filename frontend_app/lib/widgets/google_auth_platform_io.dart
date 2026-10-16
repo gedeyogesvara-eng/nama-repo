@@ -328,11 +328,11 @@ void _launchChrome(String url) {
     });
   } else if (Platform.isMacOS) {
     Process.run('open', ['-a', 'Google Chrome', url]).catchError((_) {
-      Process.run('open', [url]);
+      return Process.run('open', [url]);
     });
   } else if (Platform.isLinux) {
     Process.run('google-chrome', [url]).catchError((_) {
-      Process.run('xdg-open', [url]);
+      return Process.run('xdg-open', [url]);
     });
   }
 }
