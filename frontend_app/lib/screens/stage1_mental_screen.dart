@@ -1,50 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+import '../services/media_utils.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
-import '../widgets/neo_card.dart';
-import '../widgets/offset_canvas_box.dart';
 import 'stage2_physical_screen.dart';
 
-class DrawingPoint {
-  final Offset offset;
-  final Paint paint;
-
-  DrawingPoint({required this.offset, required this.paint});
-}
-
-class DrawingPainter extends CustomPainter {
-  final List<DrawingPoint?> points;
-
-  DrawingPainter({required this.points});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) {
-        canvas.drawLine(
-          points[i]!.offset,
-          points[i + 1]!.offset,
-          points[i]!.paint,
-        );
-      } else if (points[i] != null && points[i + 1] == null) {
-        canvas.drawCircle(
-          points[i]!.offset,
-          points[i]!.paint.strokeWidth / 2,
-          points[i]!.paint,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant DrawingPainter oldDelegate) {
-    return true;
-  }
-}
-
+/// Layar Skrining Tahap 1: Perekaman Suara (Talk / Voice)
+/// Berfokus murni pada curhat suara pengguna dengan suasana yang hangat dan ramah,
+/// tanpa instruksi teknis yang berbelit.
 class Stage1MentalScreen extends StatefulWidget {
   const Stage1MentalScreen({super.key});
 
@@ -52,96 +17,151 @@ class Stage1MentalScreen extends StatefulWidget {
   State<Stage1MentalScreen> createState() => _Stage1MentalScreenState();
 }
 
-class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
-  final List<DrawingPoint?> _points = [];
-  final GlobalKey _canvasKey = GlobalKey();
-
+class _Stage1MentalScreenState extends State<Stage1MentalScreen>
+    with SingleTickerProviderStateMixin {
   bool _isRecordingVoice = false;
   bool _voiceSaved = false;
   int _voiceSeconds = 15;
   Timer? _voiceTimer;
-  Color _selectedColor = NeoColors.white;
   bool _isSavingData = false;
-  String? _capturedAudioPath;
+
+  // Perekam mikrofon dibuat lazy (hanya saat tombol mikrofon ditekan)
+  AudioRecorder? _recorder;
+  StreamSubscription<Uint8List>? _pcmSubscription;
+  final List<int> _pcmBytes = [];
+  bool _realRecordingActive = false;
+
+  /// Audio WAV hasil rekaman (null jika belum merekam)
+  Uint8List? _audioBytes;
+
+  static const int _sampleRate = 16000;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _voiceTimer?.cancel();
+    _pcmSubscription?.cancel();
+    final recorder = _recorder;
+    if (recorder != null) {
+      unawaited(recorder.dispose().catchError((_) {}));
+    }
     super.dispose();
   }
 
-  void _clearCanvas() {
-    setState(() {
-      _points.clear();
-    });
+  void _showInfo(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: isError ? NeoColors.redDark : NeoColors.slateDark,
+      ),
+    );
   }
 
   Future<void> _toggleVoiceRecording() async {
     if (!_isRecordingVoice) {
-      if (!kIsWeb) {
-        final status = await Permission.microphone.request();
-        if (!status.isGranted) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  "Izin mikrofon diperlukan untuk merekam analisis suara.",
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                backgroundColor: NeoColors.redDark,
-              ),
-            );
-          }
-          return;
-        }
-      }
-
-      setState(() {
-        _isRecordingVoice = true;
-        _voiceSaved = false;
-        _voiceSeconds = 15;
-      });
-
-      _voiceTimer?.cancel();
-      _voiceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        if (_voiceSeconds > 1) {
-          setState(() {
-            _voiceSeconds--;
-          });
-        } else {
-          timer.cancel();
-          setState(() {
-            _isRecordingVoice = false;
-            _voiceSaved = true;
-          });
-          // Otomatis siapkan file audio
-          _prepareAudioFile();
-        }
-      });
+      await _startRecording();
     } else {
-      // Tombol ditekan kedua kali: Berhenti merekam & simpan suara
-      _voiceTimer?.cancel();
-      setState(() {
-        _isRecordingVoice = false;
-        _voiceSaved = true;
-      });
-      await _prepareAudioFile();
+      // Tombol ditekan kedua kali: berhenti merekam & simpan suara
+      await _finishRecording();
     }
   }
 
+  Future<void> _startRecording() async {
+    _pcmBytes.clear();
+    _audioBytes = null;
+    _realRecordingActive = false;
 
-  Future<String> _prepareAudioFile() async {
-    _capturedAudioPath = 'recorded_audio_saved.wav';
-    return 'recorded_audio_saved.wav';
+    // Coba mikrofon nyata (Web: izin browser, Android/iOS: izin sistem).
+    // Jika gagal, rekaman disimulasikan agar alur tidak macet.
+    try {
+      final recorder = _recorder ??= AudioRecorder();
+      if (await recorder.hasPermission()) {
+        final stream = await recorder.startStream(const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: _sampleRate,
+          numChannels: 1,
+        ));
+        _pcmSubscription = stream.listen(
+          _pcmBytes.addAll,
+          onError: (Object e) => debugPrint('Stream mikrofon error: $e'),
+        );
+        _realRecordingActive = true;
+      } else {
+        _showInfo(
+          'Izin mikrofon ditolak. Rekaman disimulasikan agar skrining tetap berjalan.',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('Mikrofon tidak tersedia: $e');
+      _showInfo('Mikrofon tidak tersedia. Rekaman disimulasikan agar skrining tetap berjalan.');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isRecordingVoice = true;
+      _voiceSaved = false;
+      _voiceSeconds = 15;
+    });
+
+    _voiceTimer?.cancel();
+    _voiceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_voiceSeconds > 1) {
+        setState(() {
+          _voiceSeconds--;
+        });
+      } else {
+        timer.cancel();
+        _finishRecording();
+      }
+    });
   }
 
-  /// Mengonversi canvas CustomPaint ke file gambar atau identifier virtual
-  Future<String> _captureCanvasToPng() async {
-    return "drawing_canvas_saved.png";
+  Future<void> _finishRecording() async {
+    _voiceTimer?.cancel();
+    if (!_isRecordingVoice) return;
+
+    if (_realRecordingActive) {
+      try {
+        await _recorder?.stop();
+      } catch (e) {
+        debugPrint('Gagal menghentikan perekam: $e');
+      }
+      await _pcmSubscription?.cancel();
+      _pcmSubscription = null;
+      _realRecordingActive = false;
+    }
+
+    // PCM16 mono 16 kHz -> WAV. Kurang dari ~0,1 detik dianggap gagal -> sintetis.
+    if (_pcmBytes.length >= _sampleRate ~/ 5) {
+      _audioBytes = MediaUtils.pcm16ToWav(Uint8List.fromList(_pcmBytes), sampleRate: _sampleRate);
+    } else {
+      _audioBytes = MediaUtils.generateSyntheticWav(sampleRate: _sampleRate);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isRecordingVoice = false;
+      _voiceSaved = true;
+    });
   }
 
   Future<void> _handleProceedToStage2() async {
@@ -151,37 +171,20 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
       _isSavingData = true;
     });
 
-    String drawingImagePath = 'drawing_canvas_fallback.png';
-    String audioPath = 'recorded_audio_fallback.wav';
-
-    try {
-      drawingImagePath = await _captureCanvasToPng().timeout(
-        const Duration(milliseconds: 600),
-        onTimeout: () => 'drawing_canvas_fallback.png',
-      );
-
-      final captured = _capturedAudioPath ?? '';
-      if (captured.isNotEmpty) {
-        audioPath = captured;
-      } else {
-        audioPath = await _prepareAudioFile().timeout(
-          const Duration(milliseconds: 600),
-          onTimeout: () => 'recorded_audio_fallback.wav',
-        );
-      }
-    } catch (e) {
-      debugPrint("⚠️ Simpan file stage 1 fallback: $e");
+    // Jika masih merekam saat tombol ditekan, hentikan & simpan dulu
+    if (_isRecordingVoice) {
+      await _finishRecording();
     }
 
     if (!mounted) return;
 
-    // 3. Navigasikan ke Tahap 2 dengan membawa data Stage 1
-    Navigator.push(
+    // Navigasikan ke Tahap 2 dengan membawa data Stage 1 (audio bytes)
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => Stage2PhysicalScreen(
-          drawingImagePath: drawingImagePath,
-          audioPath: audioPath,
+          drawingBytes: null,
+          audioBytes: _audioBytes,
         ),
       ),
     );
@@ -208,13 +211,13 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: NeoColors.primaryYellow,
-              child: Icon(Icons.person, size: 20, color: NeoColors.black),
+              backgroundColor: NeoColors.primaryBlue,
+              child: Icon(Icons.mic_rounded, size: 18, color: Colors.white),
             ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                "Tahap 1: Draw & Talk",
+                "Tahap 1: Curhat Suara",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -228,232 +231,113 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ==========================================
-              // BAGIAN DRAW (Super Sederhana & To The Point)
-              // ==========================================
-              const Text(
-                "Draw",
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: NeoColors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                "Gambarlah apapun yang ada di kepala Anda.",
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: NeoColors.darkGray,
-                ),
-              ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-              // Kanvas Menggambar Responsif untuk Semua HP Android
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final double canvasWidth = (constraints.maxWidth - 12).clamp(240.0, 360.0);
-                  final double canvasHeight = (canvasWidth * 0.85).clamp(200.0, 260.0);
-
-                  return OffsetCanvasBox(
-                    width: canvasWidth,
-                    height: canvasHeight,
-                    backgroundColor: NeoColors.primaryBlue,
-                    outlineColor: NeoColors.primaryBlue,
-                    borderRadius: 28,
-                    offset: 8,
-                    padding: EdgeInsets.zero,
-                    child: Stack(
-                      children: [
-                        // RepaintBoundary membungkus kanvas gambar
-                        RepaintBoundary(
-                          key: _canvasKey,
-                          child: Container(
-                            color: NeoColors.primaryBlue,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: GestureDetector(
-                                onPanStart: (details) {
-                                  setState(() {
-                                    _points.add(
-                                      DrawingPoint(
-                                        offset: details.localPosition,
-                                        paint: Paint()
-                                          ..color = _selectedColor
-                                          ..isAntiAlias = true
-                                          ..strokeWidth = 4.0
-                                          ..strokeCap = StrokeCap.round,
-                                      ),
-                                    );
-                                  });
-                                },
-                                onPanUpdate: (details) {
-                                  setState(() {
-                                    _points.add(
-                                      DrawingPoint(
-                                        offset: details.localPosition,
-                                        paint: Paint()
-                                          ..color = _selectedColor
-                                          ..isAntiAlias = true
-                                          ..strokeWidth = 4.0
-                                          ..strokeCap = StrokeCap.round,
-                                      ),
-                                    );
-                                  });
-                                },
-                                onPanEnd: (details) {
-                                  setState(() {
-                                    _points.add(null);
-                                  });
-                                },
-                                child: CustomPaint(
-                                  size: Size.infinite,
-                                  painter: DrawingPainter(points: _points),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Placeholder sederhana jika kanvas masih kosong
-                        if (_points.isEmpty)
-                          Center(
-                            child: IgnorePointer(
-                              child: Text(
-                                "Goreskan garis bebas di sini...",
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.5),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        // Toolbar Sederhana: Ganti Warna & Hapus
-                        Positioned(
-                          top: 10,
-                          left: 10,
-                          child: Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () => setState(() => _selectedColor = NeoColors.white),
-                                child: Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: _selectedColor == NeoColors.white
-                                        ? NeoColors.primaryYellow
-                                        : NeoColors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
-                                  ),
-                                  child: const Icon(Icons.edit, size: 18, color: NeoColors.black),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () => setState(() => _selectedColor = NeoColors.primaryYellow),
-                                child: Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: _selectedColor == NeoColors.primaryYellow
-                                        ? NeoColors.primaryYellow
-                                        : NeoColors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
-                                  ),
-                                  child: const Icon(Icons.brush, size: 18, color: NeoColors.black),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: _clearCanvas,
-                                child: Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: NeoColors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: NeoColors.borderBlack, width: 2),
-                                  ),
-                                  child: const Icon(
-                                    Icons.delete_outline_rounded,
-                                    size: 18,
-                                    color: NeoColors.redDark,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+              // KARTU CURHAT & TEKS RAMAH TO THE POINT
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: NeoColors.primaryBlue.withValues(alpha: 0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
                     ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              // ==========================================
-              // BAGIAN TALK (Suara Dinamis & To The Point)
-              // ==========================================
-              NeoCard(
-                backgroundColor: NeoColors.white,
-                borderRadius: 20,
-                shadowOffset: 4,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ],
+                ),
                 child: Column(
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: NeoColors.primaryBlue.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.record_voice_over_rounded,
+                        color: NeoColors.primaryBlue,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Text(
-                      "Talk",
+                      "Curhatlah kepada kami...",
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
                         color: NeoColors.black,
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
+                    // Teks ramah satu kalimat sesuai permintaan user
                     const Text(
-                      "Ceritakan apa yang membebanimu hari ini...",
+                      "Apa yang membebanimu hari ini? Bicaralah dengan santai, kami mendengarkan.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: NeoColors.darkGray,
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
 
-                    // Tombol Mikrofon Dinamis
-                    // Saat ditekan pertama: Berubah merah (sedang merekam)
-                    // Saat ditekan lagi: Berhenti dan keterangan "Suara tersimpan"
+              const Spacer(),
+
+              // TOMBOL MIKROFON BESAR INTERAKTIF
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Lingkaran animasi pulse saat sedang merekam
+                    if (_isRecordingVoice)
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, child) {
+                          return Container(
+                            width: 140 + (_pulseController.value * 28),
+                            height: 140 + (_pulseController.value * 28),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFFEF4444).withValues(
+                                alpha: 0.25 - (_pulseController.value * 0.15),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                    // Tombol Mikrofon Utama
                     GestureDetector(
                       onTap: _toggleVoiceRecording,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
-                        width: 76,
-                        height: 76,
+                        width: 110,
+                        height: 110,
                         decoration: BoxDecoration(
                           color: _isRecordingVoice
                               ? const Color(0xFFEF4444)
-                              : (_voiceSaved ? const Color(0xFF10B981) : const Color(0xFFF1F0EA)),
+                              : (_voiceSaved ? const Color(0xFF10B981) : NeoColors.primaryBlue),
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: NeoColors.borderBlack,
-                            width: 2.5,
-                          ),
-                          boxShadow: const [
+                          boxShadow: [
                             BoxShadow(
-                              color: NeoColors.borderBlack,
-                              offset: Offset(3, 3),
-                              blurRadius: 0,
+                              color: (_isRecordingVoice
+                                      ? const Color(0xFFEF4444)
+                                      : (_voiceSaved ? const Color(0xFF10B981) : NeoColors.primaryBlue))
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
@@ -462,37 +346,98 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                             _isRecordingVoice
                                 ? Icons.stop_rounded
                                 : (_voiceSaved ? Icons.check_rounded : Icons.mic_rounded),
-                            size: 38,
-                            color: (_isRecordingVoice || _voiceSaved)
-                                ? Colors.white
-                                : NeoColors.primaryBlue,
+                            size: 50,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Keterangan Status Suara Dinamis
-                    Text(
-                      _isRecordingVoice
-                          ? "● Sedang Merekam... (Ketuk untuk berhenti)"
-                          : (_voiceSaved ? "Suara tersimpan" : "Ketuk mikrofon untuk mulai bicara"),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: _isRecordingVoice
-                            ? const Color(0xFFEF4444)
-                            : (_voiceSaved ? const Color(0xFF059669) : NeoColors.slateLight),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
 
+              // STATUS & HITUNG MUNDUR REKAMAN
+              Column(
+                children: [
+                  if (_isRecordingVoice)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircleAvatar(
+                            radius: 4,
+                            backgroundColor: Color(0xFFEF4444),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Merekam... Sisa $_voiceSeconds detik",
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_voiceSaved)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF059669)),
+                          SizedBox(width: 6),
+                          Text(
+                            "Suara tersimpan dengan baik",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const Text(
+                      "Ketuk mikrofon untuk mulai bicara",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: NeoColors.slateLight,
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _isRecordingVoice
+                        ? "Ketuk tombol untuk berhenti lebih awal"
+                        : (_voiceSaved ? "Ketuk lagi jika ingin merekam ulang" : "Batas waktu maksimal 15 detik"),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+
+              const Spacer(),
+
+              // TOMBOL LANJUT KE TAHAP 2
               NeoButton(
-                text: _isSavingData ? "Menyimpan Data..." : "Lanjut ke Tahap 2 →",
+                text: _isSavingData ? "Menyimpan Suara..." : "Lanjut ke Tahap 2 →",
                 icon: _isSavingData ? Icons.sync : Icons.arrow_forward_rounded,
                 backgroundColor: NeoColors.primaryBlue,
                 textColor: NeoColors.white,
@@ -500,7 +445,7 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen> {
                 height: 54,
                 onPressed: _isSavingData ? null : _handleProceedToStage2,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         ),

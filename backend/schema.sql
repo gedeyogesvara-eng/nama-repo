@@ -1,3 +1,10 @@
+-- ============================================================================
+-- Somatic.AI / RESTGUARD - Skema Database MySQL (somatic_db)
+-- File ini di-embed ke backend Go (main.go) dan dijalankan OTOMATIS setiap
+-- server menyala. Semua statement bersifat idempotent (aman dijalankan ulang).
+-- Kolom baru pada tabel lama (email, password_hash, 4 skor terpisah) ditambahkan
+-- otomatis oleh migrasi di main.go jika tabel sudah ada dari versi sebelumnya.
+-- ============================================================================
 CREATE DATABASE IF NOT EXISTS somatic_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE somatic_db;
 
@@ -5,12 +12,14 @@ USE somatic_db;
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(190) NULL UNIQUE,
+    password_hash VARCHAR(255) NULL,
     recovery_score INT NOT NULL DEFAULT 40,
     zombie_stage ENUM('CRITICAL_ZOMBIE', 'TIRED_ZOMBIE', 'RECOVERING_HUMAN', 'HEALTHY_HUMAN') NOT NULL DEFAULT 'TIRED_ZOMBIE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Tabel Screening Sessions (BCNF: id dan kode_skrining adalah Candidate Keys)
+-- 2. Tabel Screening Sessions (Menyimpan 4 skor terpisah dari model AI Python)
 CREATE TABLE IF NOT EXISTS screening_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     kode_skrining VARCHAR(30) NOT NULL UNIQUE,
@@ -19,18 +28,25 @@ CREATE TABLE IF NOT EXISTS screening_sessions (
     skor_akustik INT NOT NULL,
     skor_motorik INT NOT NULL,
     skor_sklera INT NOT NULL,
+    visual_score INT NOT NULL DEFAULT 0,
+    voice_score INT NOT NULL DEFAULT 0,
+    sketch_score INT NOT NULL DEFAULT 0,
+    gait_score INT NOT NULL DEFAULT 0,
     eye_label VARCHAR(100) NOT NULL,
     audio_label VARCHAR(100) NOT NULL,
+    sketch_label VARCHAR(100) NULL,
+    gait_label VARCHAR(100) NULL,
     face_image_path VARCHAR(255) NOT NULL,
     drawing_image_path VARCHAR(255) NOT NULL,
     audio_file_path VARCHAR(255) NOT NULL,
     gait_raw_data TEXT,
     is_emergency BOOLEAN NOT NULL DEFAULT FALSE,
+    diagnosis_summary TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 3. Tabel AI Recipes (BCNF: Memisahkan daftar resep intervensi multi-value ke tabel tersendiri)
+-- 3. Tabel AI Recipes (Resep aksi personalisasi hasil rekomendasi AI)
 CREATE TABLE IF NOT EXISTS ai_recipes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     session_id INT NOT NULL,
@@ -42,9 +58,6 @@ CREATE TABLE IF NOT EXISTS ai_recipes (
     CONSTRAINT fk_recipe_session FOREIGN KEY (session_id) REFERENCES screening_sessions(id) ON DELETE CASCADE
 );
 
-INSERT INTO users (id, full_name, recovery_score, zombie_stage) VALUES
-(1, 'Demo User 1 (Mode Zombi)', 35, 'CRITICAL_ZOMBIE'),
-(2, 'Demo User 2 (Mahasiswa)', 55, 'TIRED_ZOMBIE'),
-(3, 'Demo User 3 (Pekerja)', 75, 'RECOVERING_HUMAN'),
-(4, 'Demo User 4 (Juri Test)', 50, 'TIRED_ZOMBIE')
-ON DUPLICATE KEY UPDATE full_name=VALUES(full_name);
+-- 4. Akun demo bawaan
+INSERT IGNORE INTO users (id, full_name, recovery_score, zombie_stage)
+VALUES (1, 'Pengguna Tamu', 40, 'TIRED_ZOMBIE');

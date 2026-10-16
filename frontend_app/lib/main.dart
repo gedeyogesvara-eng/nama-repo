@@ -1,10 +1,11 @@
 // ignore_for_file: unused_element
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
-
+import 'services/auth_service.dart';
+import 'services/api_config.dart';
+import 'theme/theme_controller.dart';
+import 'screens/splash_screen.dart';
 import 'screens/loading_scan_screen.dart';
 import 'screens/stage1_mental_screen.dart';
 import 'screens/stage2_physical_screen.dart';
@@ -16,41 +17,23 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
-
-// JIKA DI FOLDER lib/ ANDA SUDAH ADA FILE firebase_options.dart,
-// HAPUS TANDA // DI BAWAH INI:
-//import 'firebase_options.dart';
-
+import 'screens/home_screen.dart';
+import 'screens/anti_zombie_recipe_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi Firebase jika konfigurasi aktif, atau fallback otomatis ke mode mandiri
-  try {
-    const String firebaseApiKey = "GANTI_DENGAN_API_KEY_FIREBASE_ANDA";
-    final bool hasValidConfig = !firebaseApiKey.contains("GANTI_DENGAN") && firebaseApiKey.isNotEmpty;
+  // Inisialisasi konfigurasi API & SharedPreferences
+  await ApiConfig.init();
 
-    if (hasValidConfig && Firebase.apps.isEmpty) {
-      if (kIsWeb) {
-        // Konfigurasi khusus saat dijalankan di Browser (Chrome/Edge)
-        await Firebase.initializeApp(
-          // JIKA SUDAH ADA firebase_options.dart, GANTI BLOK const FirebaseOptions(...)
-          // DI BAWAH INI MENJADI: options: DefaultFirebaseOptions.currentPlatform,
-          options: const FirebaseOptions(
-            apiKey: firebaseApiKey,
-            authDomain: "GANTI_DENGAN_PROJECT_ID.firebaseapp.com",
-            projectId: "GANTI_DENGAN_PROJECT_ID_ANDA",
-            storageBucket: "GANTI_DENGAN_PROJECT_ID.appspot.com",
-            messagingSenderId: "GANTI_DENGAN_SENDER_ID_ANDA",
-            appId: "GANTI_DENGAN_APP_ID_ANDA",
-          ),
-        );
-      } else {
-        // Konfigurasi saat dijalankan di Android / iOS
-        await Firebase.initializeApp();
-      }
-    }
+  // Inisialisasi Tema Aplikasi (Light / Dark Mode)
+  await themeController.init();
+
+  // Autentikasi memakai Backend Go + MySQL (tanpa Firebase).
+  // Pulihkan sesi login terakhir (user_id & full_name) jika ada.
+  try {
+    await authService.restoreSession();
   } catch (e) {
-    debugPrint("Firebase init error: $e");
+    debugPrint("Gagal memulihkan sesi login: $e");
   }
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -100,33 +83,60 @@ class DepressionDetectionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'RESTGUARD - Mental Health & Fatigue Detection',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF2F1EB),
-        fontFamily: 'sans-serif',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF314BB5),
-          primary: const Color(0xFF314BB5),
-          secondary: const Color(0xFFFFC436),
-          surface: const Color(0xFFF2F1EB),
-        ),
-      ),
-      home: const WelcomeScreen(),
-      routes: {
-        '/welcome': (context) => const WelcomeScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/forgot_password': (context) => const ForgotPasswordScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/stage1': (context) => const Stage1MentalScreen(),
-        '/stage2': (context) => const Stage2PhysicalScreen(),
-        '/stage3': (context) => const Stage3VisualScreen(),
-        '/loading_scan': (context) => const LoadingScanScreen(),
-        '/result': (context) => const ResultScreen(),
-        '/history': (context) => const HistoryScreen(),
-        '/prototype': (context) => const PrototypeRootScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeController.themeModeNotifier,
+      builder: (context, currentMode, _) {
+        return MaterialApp(
+          navigatorKey: authService.navigatorKey,
+          title: 'RESTGUARD - Mental Health & Fatigue Detection',
+          debugShowCheckedModeBanner: false,
+          themeMode: currentMode,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: const Color(0xFFF2F1EB),
+            fontFamily: 'sans-serif',
+            colorScheme: ColorScheme.fromSeed(
+              brightness: Brightness.light,
+              seedColor: const Color(0xFF314BB5),
+              primary: const Color(0xFF314BB5),
+              secondary: const Color(0xFFFFC436),
+              surface: const Color(0xFFF2F1EB),
+            ),
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: const Color(0xFF121217),
+            fontFamily: 'sans-serif',
+            colorScheme: ColorScheme.fromSeed(
+              brightness: Brightness.dark,
+              seedColor: const Color(0xFF4C6EF5),
+              primary: const Color(0xFF4C6EF5),
+              secondary: const Color(0xFFFFC436),
+              surface: const Color(0xFF1E1E26),
+            ),
+          ),
+          home: authService.currentUser != null
+              ? const DashboardScreen()
+              : const WelcomeScreen(),
+          routes: {
+            '/splash': (context) => const SplashScreen(),
+            '/welcome': (context) => const WelcomeScreen(),
+            '/auth': (context) => const WelcomeScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/forgot_password': (context) => const ForgotPasswordScreen(),
+            '/dashboard': (context) => const DashboardScreen(),
+            '/home': (context) => const DashboardScreen(),
+            '/recipes': (context) => const AntiZombieRecipeScreen(),
+            '/stage1': (context) => const Stage1MentalScreen(),
+            '/stage2': (context) => const Stage2PhysicalScreen(),
+            '/stage3': (context) => const Stage3VisualScreen(),
+            '/loading_scan': (context) => const LoadingScanScreen(),
+            '/result': (context) => const ResultScreen(),
+            '/history': (context) => const HistoryScreen(),
+            '/prototype': (context) => const PrototypeRootScreen(),
+          },
+        );
       },
     );
   }

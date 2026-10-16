@@ -9,16 +9,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  google_sign_in: ^6.2.2
+  flutter_svg: ^2.0.9
   cupertino_icons: ^1.0.8
   image_picker: ^1.2.4
   permission_handler: ^13.0.2
   camera: ^0.12.1
   http: ^1.6.0
   path_provider: ^2.1.6
-  firebase_core: ^4.15.0
-  firebase_auth: ^6.7.0
-  google_sign_in: ^6.2.1
-
+  shared_preferences: ^2.5.6
+  record: ^7.1.2
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -26,3 +28,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/lukisan_siang.svg
+    - assets/lukisan_malam.svg
+    - assets/images/lukisan_siang.svg
+    - assets/images/lukisan_malam.svg

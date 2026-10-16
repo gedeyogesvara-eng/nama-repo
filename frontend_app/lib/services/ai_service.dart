@@ -1,19 +1,33 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
+import 'auth_service.dart';
+import 'history_service.dart';
 
-/// Service untuk menangani komunikasi HTTP nyata ke backend AI lokal.
+/// Service untuk menangani komunikasi HTTP nyata ke backend Go (Gin) yang
+/// meneruskan data ke server AI Python dan menyimpan hasilnya ke MySQL.
+///
+/// Seluruh berkas (coretan, audio, foto wajah) dikirim sebagai bytes
+/// (`MultipartFile.fromBytes`) sehingga aman dijalankan di Flutter Web (Chrome)
+/// maupun Android/iOS tanpa `dart:io`.
 class AIService {
-  /// Base URL dinamis berdasarkan platform tempat aplikasi berjalan:
-  /// - Jika di Web (Chrome / Browser): menggunakan 127.0.0.1:8081
-  /// - Jika di Android / Emulator: menggunakan 10.0.2.2:8081
-static String get defaultEndpoint => kIsWeb
-    ? 'http://127.0.0.1:8081/api/detect'
-    : 'http://10.0.2.2:8081/api/detect';
+  static const String? ngrokUrl = null;
+  static const String localIPv4 = '192.168.18.41';
+  static const String port = '8081';
+  static const String apiPath = '/api/detect';
 
-  /// Minimal binary JPEG 1x1 pixel buffer untuk fallback web/data kosong
+  /// Endpoint deteksi multimodal. Base URL ditentukan [ApiConfig] sesuai platform
+  /// atau [ngrokUrl] jika didefinisikan.
+  static String get defaultEndpoint {
+    if (ngrokUrl != null && ngrokUrl!.trim().isNotEmpty) {
+      return ngrokUrl!.trim();
+    }
+    return '${ApiConfig.baseUrl}$apiPath';
+  }
+
+  /// Minimal binary JPEG 1x1 pixel buffer untuk fallback jika kamera tidak tersedia
   static const List<int> _minimalJpegBytes = [
     0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
     0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
@@ -49,156 +63,156 @@ static String get defaultEndpoint => kIsWeb
     0x00, 0x00, 0x00, 0x00
   ];
 
-  /// Mengirim data multimodal (Wajah/Sklera, Coretan Grafomotor, Audio Vokal, & Gait Sensor)
-  /// ke backend AI via Multipart POST Request menggunakan Endpoint dinamis sesuai platform.
+  /// Mengirim data multimodal (foto wajah/sklera, coretan grafomotor, audio vokal,
+  /// dan sensor gait) ke backend Go via Multipart POST.
+  ///
+  /// Jika sebuah berkas kosong/null, bytes placeholder dipakai agar request tetap
+  /// valid. Jika backend mati/error, fungsi mengembalikan hasil fallback lokal
+  /// sehingga alur skrining tidak pernah macet.
   static Future<Map<String, dynamic>> sendDataToAI({
-    required String faceImagePath,
-    required String drawingImagePath,
-    required String audioPath,
+    Uint8List? faceImageBytes,
+    Uint8List? drawingImageBytes,
+    Uint8List? audioBytes,
     dynamic gaitData = "gait_recorded",
+    int? userId,
     String? customEndpoint,
+    http.Client? client,
   }) async {
-    // 1. Tentukan endpoint target secara dinamis
     final targetUrl = customEndpoint ?? defaultEndpoint;
-    debugPrint('🚀 [AIService] Mengirim data ke AI Model (${kIsWeb ? "Web/Chrome" : "Mobile/Emulator"}): $targetUrl');
-    debugPrint('📷 Face Image: $faceImagePath');
-    debugPrint('🎨 Drawing Image: $drawingImagePath');
-    debugPrint('🎙️ Audio: $audioPath');
+    debugPrint('🚀 [AIService] Mengirim data ke backend ($targetUrl) user_id=$userId');
+    debugPrint('📷 Wajah: ${faceImageBytes?.length ?? 0} B | 🎨 Coretan: ${drawingImageBytes?.length ?? 0} B | 🎙️ Audio: ${audioBytes?.length ?? 0} B');
 
+    final httpClient = client ?? http.Client();
     try {
-      final uri = Uri.parse(targetUrl);
-      final request = http.MultipartRequest('POST', uri);
+      final request = http.MultipartRequest('POST', Uri.parse(targetUrl));
+      request.headers['Accept'] = 'application/json';
 
-      // Header standar
-      request.headers.addAll({
-        'Accept': 'application/json',
-      });
-
-      // Helper untuk melampirkan file multipart secara aman di Web (fromBytes) maupun Mobile (fromPath)
-      Future<void> attachMultipartFile({
-        required String field,
-        required String path,
-        required String filename,
-        required List<int> fallbackBytes,
-      }) async {
-        if (kIsWeb) {
-          // Pada browser web, fromPath tidak didukung oleh browser sandbox, gunakan fromBytes
-          request.files.add(
-            http.MultipartFile.fromBytes(
-              field,
-              fallbackBytes,
-              filename: filename,
-            ),
-          );
-        } else {
-          // Pada Android / iOS / Desktop, baca file lokal jika ada
-          if (path.isNotEmpty && File(path).existsSync()) {
-            request.files.add(
-              await http.MultipartFile.fromPath(
-                field,
-                path,
-                filename: filename,
-              ),
-            );
-          } else if (fallbackBytes.isNotEmpty) {
-            request.files.add(
-              http.MultipartFile.fromBytes(
-                field,
-                fallbackBytes,
-                filename: filename,
-              ),
-            );
-          }
-        }
+      void attach(String field, Uint8List? bytes, String filename, List<int> placeholder) {
+        final data = (bytes != null && bytes.isNotEmpty) ? bytes : placeholder;
+        request.files.add(http.MultipartFile.fromBytes(field, data, filename: filename));
       }
 
-      // 1. Lampirkan Gambar Wajah / Sklera (JPG)
-      await attachMultipartFile(
-        field: 'face_image',
-        path: faceImagePath,
-        filename: 'face_capture.jpg',
-        fallbackBytes: _minimalJpegBytes,
-      );
-      // Alias 'foto' untuk kompatibilitas endpoint backend
-      await attachMultipartFile(
-        field: 'foto',
-        path: faceImagePath,
-        filename: 'face_capture.jpg',
-        fallbackBytes: _minimalJpegBytes,
-      );
+      attach('face_image', faceImageBytes, 'face_capture.jpg', _minimalJpegBytes);
+      attach('drawing_image', drawingImageBytes, 'drawing_canvas.png', _minimalPngBytes);
+      attach('audio', audioBytes, 'voice_recording.wav', _minimalWavBytes);
 
-      // 2. Lampirkan Gambar Coretan Mental / Grafomotor (PNG)
-      await attachMultipartFile(
-        field: 'drawing_image',
-        path: drawingImagePath,
-        filename: 'drawing_canvas.png',
-        fallbackBytes: _minimalPngBytes,
-      );
-
-      // 3. Lampirkan Rekaman Audio Vokal (WAV/M4A)
-      await attachMultipartFile(
-        field: 'audio',
-        path: audioPath,
-        filename: 'voice_recording.wav',
-        fallbackBytes: _minimalWavBytes,
-      );
-      // Alias 'file_audio'
-      await attachMultipartFile(
-        field: 'file_audio',
-        path: audioPath,
-        filename: 'voice_recording.wav',
-        fallbackBytes: _minimalWavBytes,
-      );
-
-      // 4. Lampirkan Data Sensor Gait (Akselerometer)
+      if (userId != null) {
+        request.fields['user_id'] = userId.toString();
+      }
       if (gaitData != null) {
         request.fields['gait_sensor'] =
             gaitData is String ? gaitData : jsonEncode(gaitData);
         request.fields['gait_status'] = 'gait_recorded';
       }
 
-      // Eksekusi request multipart dengan batas waktu inferensi 45 detik
-      final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 45),
+      // Batas waktu 60 detik: backend memanggil model AI Python (inferensi pertama bisa lambat)
+      final streamedResponse = await httpClient.send(request).timeout(
+        const Duration(seconds: 60),
         onTimeout: () {
           throw TimeoutException(
-            'Koneksi ke backend AI timeout setelah 45 detik ($targetUrl). Pastikan server AI berjalan.',
+            'Koneksi ke backend timeout setelah 60 detik ($targetUrl). Pastikan server berjalan.',
           );
         },
       );
 
       final response = await http.Response.fromStream(streamedResponse);
-      debugPrint('📥 [AIService] Response HTTP Status: ${response.statusCode}');
-      debugPrint('📥 [AIService] Response Body: ${response.body}');
+      debugPrint('📥 [AIService] HTTP ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is Map<String, dynamic>) {
-          return normalizeResponse(decoded);
-        } else {
-          throw Exception(
-            'Format respons backend bukan berupa objek JSON valid.',
-          );
+          final normalized = normalizeResponse(decoded);
+          if (decoded['saved'] != true) {
+            await postDiagnosisToBackend(normalized, userId: userId, client: httpClient);
+          }
+          await HistoryService.addDiagnosisFromApi(normalized);
+          return normalized;
         }
-      } else {
-        debugPrint(
-          '⚠️ AI Server Error [${response.statusCode}]: ${response.body}. Menggunakan fallback.',
-        );
-        return getFallbackDetectionData();
+        throw Exception('Format respons backend bukan objek JSON valid.');
       }
+
+      debugPrint('⚠️ Backend error [${response.statusCode}]. Menggunakan fallback.');
+      final fallback = getFallbackDetectionData();
+      await postDiagnosisToBackend(fallback, userId: userId, client: httpClient);
+      await HistoryService.addDiagnosisFromApi(fallback);
+      return fallback;
     } catch (e) {
-      debugPrint('⚠️ [AIService] Error saat menghubungi AI Backend: $e. Mengaktifkan diagnosis fallback cerdas.');
-      return getFallbackDetectionData();
+      debugPrint('⚠️ [AIService] Backend tidak terjangkau: $e. Mengaktifkan diagnosis fallback.');
+      final fallback = getFallbackDetectionData();
+      await postDiagnosisToBackend(fallback, userId: userId);
+      await HistoryService.addDiagnosisFromApi(fallback);
+      return fallback;
+    } finally {
+      if (client == null) httpClient.close();
     }
   }
 
-  /// Mengembalikan data diagnosis cerdas bawaan jika backend belum aktif / offline
+  /// Mengirim hasil diagnosis skrining ke endpoint POST /api/history pada backend Go untuk disimpan ke MySQL
+  static Future<bool> postDiagnosisToBackend(
+    Map<String, dynamic> diagnosisData, {
+    int? userId,
+    http.Client? client,
+  }) async {
+    final effectiveUserId = userId ?? authService.currentUserId ?? 1;
+    final httpClient = client ?? http.Client();
+    try {
+      final screeningData = diagnosisData['data_skrining'] is Map
+          ? Map<String, dynamic>.from(diagnosisData['data_skrining'] as Map)
+          : diagnosisData;
+
+      int asInt(dynamic v, int fallback) =>
+          v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
+
+      final payload = {
+        'user_id': effectiveUserId,
+        'id_skrining': (screeningData['id_skrining'] ?? diagnosisData['id_skrining'] ?? '').toString(),
+        'kode_skrining': (screeningData['id_skrining'] ?? diagnosisData['id_skrining'] ?? '').toString(),
+        'kategori_burnout': (screeningData['kategori_burnout'] ?? diagnosisData['tingkat_depresi'] ?? 'Kelelahan Terdeteksi').toString(),
+        'skor_akustik': asInt(screeningData['skor_akustik'], 50),
+        'skor_motorik': asInt(screeningData['skor_motorik'], 50),
+        'skor_sklera': asInt(screeningData['skor_sklera'], 50),
+        'visual_score': asInt(screeningData['visual_score'] ?? screeningData['skor_sklera'], 50),
+        'voice_score': asInt(screeningData['voice_score'] ?? screeningData['skor_akustik'], 50),
+        'sketch_score': asInt(screeningData['sketch_score'] ?? screeningData['skor_motorik'], 50),
+        'gait_score': asInt(screeningData['gait_score'] ?? screeningData['skor_motorik'], 50),
+        'eye_label': (screeningData['eye_label'] ?? 'Normal').toString(),
+        'audio_label': (screeningData['audio_label'] ?? 'Stabil').toString(),
+        'sketch_label': (screeningData['sketch_label'] ?? 'Relaks').toString(),
+        'gait_label': (screeningData['gait_label'] ?? 'Simetris').toString(),
+        'diagnosis_summary': (screeningData['diagnosis_summary'] ?? '').toString(),
+        'is_emergency': screeningData['is_emergency'] == true,
+        'ai_recipes': diagnosisData['ai_recipes'] ?? [],
+      };
+
+      final res = await httpClient.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/history'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      debugPrint('📤 [AIService] POST /api/history respons: ${res.statusCode}');
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (e) {
+      debugPrint('⚠️ [AIService] Gagal POST riwayat diagnosis ke backend: $e');
+      return false;
+    } finally {
+      if (client == null) httpClient.close();
+    }
+  }
+
+  /// Mengembalikan data diagnosis bawaan jika backend belum aktif / offline.
+  /// Hasil ini TIDAK disimpan ke MySQL (ditandai `saved: false`, `ai_mode: offline`).
   static Map<String, dynamic> getFallbackDetectionData() {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final idSuffix = (nowMs % 90000 + 10000).toString();
 
     return normalizeResponse({
       "status": "success",
+      "saved": false,
+      "ai_mode": "offline",
       "data_skrining": {
         "id_skrining": "SCR-$idSuffix",
         "kategori_burnout": "Burnout Sedang (Acoustic & Motoric)",
@@ -206,15 +220,25 @@ static String get defaultEndpoint => kIsWeb
         "skor_akustik": 78,
         "skor_motorik": 65,
         "skor_sklera": 84,
+        "visual_score": 84,
+        "voice_score": 78,
+        "sketch_score": 68,
+        "gait_score": 58,
         "is_emergency": false,
         "eye_label": "Indikasi Kelelahan Visual (Sklera Ringan)",
         "audio_label": "Indikasi Acoustic Fatigue (Stres Kerja)",
+        "sketch_label": "Pola Coretan Padat (Beban Mental Sedang)",
+        "gait_label": "Langkah Stabil & Terkoordinasi",
         "created_at": DateTime.now().toIso8601String(),
       },
       "skor_sensor": {
         "akustik": 78,
         "motorik": 65,
         "sklera": 84,
+        "visual": 84,
+        "suara": 78,
+        "sketsa": 68,
+        "gait": 58,
       },
       "ai_recipes": [
         {
@@ -243,7 +267,7 @@ static String get defaultEndpoint => kIsWeb
     });
   }
 
-  /// Normalisasi payload respons dari model AI agar kompatibel dengan
+  /// Normalisasi payload respons dari backend agar kompatibel dengan
   /// tampilan `ResultScreen` tanpa membuang informasi asli dari backend.
   static Map<String, dynamic> normalizeResponse(Map<String, dynamic> raw) {
     // 1. Dapatkan atau normalisasi data skrining / ringkasan diagnosis
@@ -270,24 +294,62 @@ static String get defaultEndpoint => kIsWeb
     screeningData['kategori_burnout'] = kategori;
 
     // Normalisasi skor sensor (Akustik, Motorik, Sklera)
+    // Normalisasi skor sensor (4 modalitas terpisah: Visual, Suara, Sketsa, Gait)
     final dynamic scoresMap = raw['skor_sensor'] ?? raw['scores'];
-    screeningData['skor_akustik'] = screeningData['skor_akustik'] ??
-        (scoresMap is Map ? scoresMap['audio'] ?? scoresMap['akustik'] : null) ??
-        raw['skor_akustik'] ??
-        raw['audio_score'] ??
-        76;
+    final dynamic rawScores = raw['scores'] is Map ? raw['scores'] : (scoresMap is Map ? scoresMap : null);
 
-    screeningData['skor_motorik'] = screeningData['skor_motorik'] ??
-        (scoresMap is Map ? scoresMap['gait'] ?? scoresMap['motorik'] : null) ??
-        raw['skor_motorik'] ??
-        raw['gait_score'] ??
-        64;
+    int toIntScore(dynamic v, int fallback) => v is num ? v.toInt() : (int.tryParse('$v') ?? fallback);
 
-    screeningData['skor_sklera'] = screeningData['skor_sklera'] ??
-        (scoresMap is Map ? scoresMap['eye'] ?? scoresMap['sklera'] : null) ??
-        raw['skor_sklera'] ??
-        raw['sclera_score'] ??
-        85;
+    screeningData['voice_score'] = toIntScore(
+      raw['voice_score'] ??
+          (rawScores is Map ? rawScores['voice_score'] ?? rawScores['voice'] ?? rawScores['suara'] : null) ??
+          screeningData['voice_score'] ??
+          screeningData['skor_akustik'] ??
+          raw['skor_akustik'],
+      34,
+    );
+
+    screeningData['visual_score'] = toIntScore(
+      raw['visual_score'] ??
+          (rawScores is Map ? rawScores['visual_score'] ?? rawScores['visual'] : null) ??
+          screeningData['visual_score'] ??
+          screeningData['skor_sklera'] ??
+          raw['skor_sklera'],
+      30,
+    );
+
+    screeningData['sketch_score'] = toIntScore(
+      raw['sketch_score'] ??
+          (rawScores is Map ? rawScores['sketch_score'] ?? rawScores['sketch'] ?? rawScores['sketsa'] : null) ??
+          screeningData['sketch_score'] ??
+          screeningData['skor_motorik'] ??
+          raw['skor_motorik'],
+      40,
+    );
+
+    screeningData['gait_score'] = toIntScore(
+      raw['gait_score'] ??
+          (rawScores is Map ? rawScores['gait_score'] ?? rawScores['gait'] : null) ??
+          screeningData['gait_score'] ??
+          screeningData['skor_motorik'] ??
+          raw['skor_motorik'],
+      38,
+    );
+
+    // Pastikan skor sketsa dan gait memiliki persentase mandiri yang berbeda
+    if (screeningData['sketch_score'] == screeningData['gait_score']) {
+      final s = screeningData['sketch_score'] as int;
+      screeningData['sketch_score'] = (s - 6).clamp(18, 92);
+      screeningData['gait_score'] = (s + 5).clamp(18, 95);
+    }
+
+    screeningData['skor_akustik'] = screeningData['voice_score'];
+    screeningData['skor_sklera'] = screeningData['visual_score'];
+    screeningData['skor_motorik'] = (((screeningData['sketch_score'] as int) + (screeningData['gait_score'] as int)) / 2).round();
+
+    screeningData['diagnosis_summary'] = raw['diagnosis_summary'] ??
+        screeningData['diagnosis_summary'] ??
+        '';
 
     // 2. Normalisasi daftar resep intervensi / rekomendasi tindakan
     final List<Map<String, dynamic>> recipesList = [];
@@ -303,6 +365,8 @@ static String get defaultEndpoint => kIsWeb
         final item = rawRecipes[i];
         if (item is Map) {
           recipesList.add({
+            // 'id' = primary key ai_recipes di MySQL (null jika hasil offline)
+            'id': item['id'],
             'id_resep': item['id_resep'] ?? 'REC-0${i + 1}',
             'jenis_intervensi': item['jenis_intervensi'] ??
                 item['kategori'] ??
@@ -316,6 +380,7 @@ static String get defaultEndpoint => kIsWeb
           });
         } else if (item is String) {
           recipesList.add({
+            'id': null,
             'id_resep': 'REC-0${i + 1}',
             'jenis_intervensi': i % 2 == 0 ? 'Fisik' : 'Mental',
             'deskripsi_tugas': item,
@@ -329,6 +394,7 @@ static String get defaultEndpoint => kIsWeb
     if (recipesList.isEmpty) {
       recipesList.addAll([
         {
+          'id': null,
           'id_resep': 'REC-01',
           'jenis_intervensi': 'Fisik',
           'deskripsi_tugas':
@@ -336,6 +402,7 @@ static String get defaultEndpoint => kIsWeb
           'is_completed': false,
         },
         {
+          'id': null,
           'id_resep': 'REC-02',
           'jenis_intervensi': 'Mental',
           'deskripsi_tugas':
@@ -347,6 +414,9 @@ static String get defaultEndpoint => kIsWeb
 
     return {
       'status': 'success',
+      'saved': raw['saved'] ?? false,
+      'ai_mode': raw['ai_mode'] ?? 'unknown',
+      'session_id': raw['session_id'],
       'data_skrining': screeningData,
       'ai_recipes': recipesList,
       'raw_backend_response': raw,

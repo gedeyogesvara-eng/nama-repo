@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
+import '../services/auth_service.dart';
+import '../services/backend_service.dart';
+import 'relaxation_drawing_screen.dart';
 
 /// Halaman Hasil Deteksi AI
 /// Menampilkan ringkasan diagnosis, 3 indikator metrik sensor,
@@ -83,6 +86,7 @@ class _ResultScreenState extends State<ResultScreen> {
     _recipes = rawRecipes.map((r) {
       if (r is Map) {
         return <String, dynamic>{
+          'id': r['id'],
           'id_resep': r['id_resep'] ?? 'REC-01',
           'jenis_intervensi':
               r['jenis_intervensi'] ?? r['kategori'] ?? 'Fisik',
@@ -92,6 +96,7 @@ class _ResultScreenState extends State<ResultScreen> {
         };
       } else {
         return <String, dynamic>{
+          'id': null,
           'id_resep': 'REC-01',
           'jenis_intervensi': 'Fisik',
           'deskripsi_tugas': r.toString(),
@@ -109,6 +114,28 @@ class _ResultScreenState extends State<ResultScreen> {
 
     final taskDesc = _recipes[index]['deskripsi_tugas'] ?? '';
     final isDone = _recipes[index]['is_completed'] as bool;
+
+    // Sinkronkan ke MySQL (hanya jika resep punya id dari backend) lalu segarkan skor pemulihan
+    final recipeId = _recipes[index]['id'];
+    if (recipeId != null) {
+      BackendService.setRecipeCompleted(recipeId, isDone).then((res) {
+        if (res != null) {
+          authService.refreshProfile();
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Gagal menyinkronkan ke server. Perubahan hanya tersimpan di layar ini.',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              backgroundColor: redDark,
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.all(16),
+            ),
+          );
+        }
+      });
+    }
 
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -128,11 +155,22 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    int asInt(dynamic v, int fallback) => v is num ? v.toInt() : (int.tryParse('$v') ?? fallback);
+
     final idSkrining = _screeningData['id_skrining'] ?? 'SCR-UNKNOWN';
     final kategoriBurnout = _screeningData['kategori_burnout'] ?? 'Kelelahan Terdeteksi';
-    final skorAkustik = _screeningData['skor_akustik'] ?? 0;
-    final skorMotorik = _screeningData['skor_motorik'] ?? 0;
-    final skorSklera = _screeningData['skor_sklera'] ?? 0;
+
+    final int skorSuara = asInt(_screeningData['voice_score'] ?? _screeningData['skor_akustik'], 34);
+    final int skorVisual = asInt(_screeningData['visual_score'] ?? _screeningData['skor_sklera'], 32);
+    final int skorSketsa = asInt(_screeningData['sketch_score'] ?? _screeningData['skor_motorik'], 40);
+    final int skorGait = asInt(_screeningData['gait_score'] ?? _screeningData['skor_motorik'], 38);
+
+    final String labelVisual = (_screeningData['eye_label'] ?? _screeningData['eye_diagnosis'] ?? 'Normal (Sehat)').toString();
+    final String labelSuara = (_screeningData['audio_label'] ?? _screeningData['audio_diagnosis'] ?? 'Vokal Normal (Stabil)').toString();
+    final String labelSketsa = (_screeningData['sketch_label'] ?? 'Pola Coretan Rileks').toString();
+    final String labelGait = (_screeningData['gait_label'] ?? 'Langkah Terkoordinasi').toString();
+
+    final String diagSummary = (_screeningData['diagnosis_summary'] ?? '').toString();
 
     final completedCount = _recipes.where((r) => r['is_completed'] == true).length;
     final totalCount = _recipes.length;
@@ -151,14 +189,19 @@ class _ResultScreenState extends State<ResultScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 children: [
                   // 1. Header Card Biru Tua (#314BB5)
-                  _buildPrimaryHeaderCard(kategoriBurnout),
+                  _buildPrimaryHeaderCard(kategoriBurnout, diagSummary),
                   const SizedBox(height: 24),
 
-                  // 2. Section 3 Metrik Sensor
+                  // 2. Section 4 Metrik Sensor Multimodal
                   _buildMetricsSection(
-                    skorAkustik: skorAkustik,
-                    skorMotorik: skorMotorik,
-                    skorSklera: skorSklera,
+                    skorSuara: skorSuara,
+                    skorVisual: skorVisual,
+                    skorSketsa: skorSketsa,
+                    skorGait: skorGait,
+                    labelSuara: labelSuara,
+                    labelVisual: labelVisual,
+                    labelSketsa: labelSketsa,
+                    labelGait: labelGait,
                   ),
                   const SizedBox(height: 28),
 
@@ -166,7 +209,11 @@ class _ResultScreenState extends State<ResultScreen> {
                   _buildRecipesSection(completedCount, totalCount),
                   const SizedBox(height: 28),
 
-                  // 4. Tombol Selesai / Navigasi Beranda
+                  // 4. Saran Relaksasi Menggambar (Tombol Besar)
+                  _buildRelaxationSuggestionCard(),
+                  const SizedBox(height: 16),
+
+                  // 5. Tombol Selesai / Navigasi Beranda
                   _buildBottomActionButton(),
                   const SizedBox(height: 32),
                 ],
@@ -266,7 +313,7 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   // --- HEADER CARD BIRU TUA ---
-  Widget _buildPrimaryHeaderCard(String kategoriBurnout) {
+  Widget _buildPrimaryHeaderCard(String kategoriBurnout, String diagSummary) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
@@ -357,16 +404,23 @@ class _ResultScreenState extends State<ResultScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Korelasi penurunan frekuensi langkah motorik dan mikrosleep sklera menunjukkan kelelahan kognitif tinggi.',
+                    diagSummary.isNotEmpty
+                        ? diagSummary
+                        : 'Hasil analisis multimodal 4 sensor Somatic.AI: integrasi respons mata, suara, ritme motorik sketsa, dan dinamika langkah gait.',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontSize: 12,
                       height: 1.4,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -378,12 +432,20 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // --- SECTION METRIK (3 KARTU KECIL) ---
+  // --- SECTION METRIK (4 KARTU MULTIMODAL) ---
   Widget _buildMetricsSection({
-    required dynamic skorAkustik,
-    required dynamic skorMotorik,
-    required dynamic skorSklera,
+    required int skorSuara,
+    required int skorVisual,
+    required int skorSketsa,
+    required int skorGait,
+    required String labelSuara,
+    required String labelVisual,
+    required String labelSketsa,
+    required String labelGait,
   }) {
+    Color getAccent(int score) => score >= 70 ? redDark : (score >= 45 ? amberDark : greenDark);
+    Color getBg(int score) => score >= 70 ? redBg : (score >= 45 ? amberBg : greenBg);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -392,7 +454,7 @@ class _ResultScreenState extends State<ResultScreen> {
             Icon(Icons.speed_rounded, size: 16, color: primaryBlue),
             SizedBox(width: 6),
             Text(
-              'INDIKATOR MULTIMODAL',
+              'INDIKATOR 4 MODALITAS AI',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
@@ -407,34 +469,49 @@ class _ResultScreenState extends State<ResultScreen> {
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: 'Akustik',
-                score: skorAkustik.toString(),
+                title: 'Suara (Audio)',
+                score: '$skorSuara%',
                 icon: Icons.graphic_eq_rounded,
-                statusText: 'Monoton',
-                accentColor: amberDark,
-                bgTint: amberBg,
+                statusText: labelSuara,
+                accentColor: getAccent(skorSuara),
+                bgTint: getBg(skorSuara),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _buildMetricCard(
-                title: 'Motorik',
-                score: skorMotorik.toString(),
-                icon: Icons.directions_walk_rounded,
-                statusText: 'Melambat',
-                accentColor: redDark,
-                bgTint: redBg,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'Sklera',
-                score: skorSklera.toString(),
+                title: 'Visual (Mata)',
+                score: '$skorVisual%',
                 icon: Icons.remove_red_eye_outlined,
-                statusText: 'Tegang',
-                accentColor: amberDark,
-                bgTint: amberBg,
+                statusText: labelVisual,
+                accentColor: getAccent(skorVisual),
+                bgTint: getBg(skorVisual),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Sketsa (Draw)',
+                score: '$skorSketsa%',
+                icon: Icons.draw_outlined,
+                statusText: labelSketsa,
+                accentColor: getAccent(skorSketsa),
+                bgTint: getBg(skorSketsa),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Gait (Sensor)',
+                score: '$skorGait%',
+                icon: Icons.directions_walk_rounded,
+                statusText: labelGait,
+                accentColor: getAccent(skorGait),
+                bgTint: getBg(skorGait),
               ),
             ),
           ],
@@ -508,6 +585,9 @@ class _ResultScreenState extends State<ResultScreen> {
                 fontWeight: FontWeight.w800,
                 color: accentColor,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -707,6 +787,115 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
+  // --- SARAN RELAKSASI MENGGAMBAR (TOMBOL BESAR) ---
+  Widget _buildRelaxationSuggestionCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: primaryBlue,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderBlack, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: borderBlack,
+            offset: Offset(3.5, 3.5),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.palette_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "SARAN PEMULIHAN CEPAT",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFFDE68A),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    Text(
+                      "Lepaskan Beban Pikiran",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "Coretan bebas terbukti membantu menenangkan sistem saraf dan meredakan ketegangan mental setelah skrining.",
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white70,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Tombol Berukuran Besar "Mari Rileks Sejenak"
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RelaxationDrawingScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.brush_rounded, color: primaryBlue, size: 20),
+              label: const Text(
+                "Mari Rileks Sejenak",
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: primaryBlue,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: const BorderSide(color: borderBlack, width: 2),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- TOMBOL AKSI BAWAH ---
   Widget _buildBottomActionButton() {
     return Container(
@@ -728,7 +917,8 @@ class _ResultScreenState extends State<ResultScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            // Kembali ke Dashboard (dibangun ulang agar skor pemulihan terbaru dimuat)
+            Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
           },
           child: const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),

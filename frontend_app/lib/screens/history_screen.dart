@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../services/history_service.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
 import '../widgets/neo_card.dart';
@@ -20,105 +22,155 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   String _selectedFilter = 'all'; // 'all', 'healthy', 'moderate', 'extreme'
 
-  // Data dummy riwayat skrining statis (hardcoded)
-  final List<Map<String, dynamic>> _dummyHistory = const [
-    {
-      'id': 'SCR-2026-1012',
-      'date': '12 Okt 2026',
-      'time': '14:30 WIB',
-      'category': 'healthy',
-      'title': 'Kondisi Prima (Sehat)',
-      'score': 92,
-      'badgeText': 'Prima • 92/100',
-      'accentColor': NeoColors.greenDark,
-      'bgTint': NeoColors.greenLight,
-      'textColor': NeoColors.greenDark,
-      'icon': Icons.sentiment_very_satisfied_rounded,
-      'summary':
-          'Respon saraf otonom prima. Irama gait stabil simetris dan mikrosleep visual nihil.',
-      'details': {
-        'suara': {'score': '94%', 'desc': 'Prosodi vokal dinamis & ekspresif'},
-        'gait': {'score': '91%', 'desc': 'Simetri irama langkah optimal'},
-        'visual': {'score': '18%', 'desc': 'Tegangan optik kornea sangat rendah'},
-        'sketsa': {'score': '22%', 'desc': 'Pola goresan spontan & rileks'},
-      },
-      'tips':
-          'Pertahankan ritme kerja, hidrasi teratur, dan pola istirahat sirkadian saat ini.',
-    },
-    {
-      'id': 'SCR-2026-1008',
-      'date': '08 Okt 2026',
-      'time': '19:15 WIB',
-      'category': 'moderate',
-      'title': 'Kelelahan Kerja (Burnout Sedang)',
-      'score': 64,
-      'badgeText': 'Burnout • 64/100',
-      'accentColor': NeoColors.amber,
-      'bgTint': Color(0xFFFEF3C7),
-      'textColor': Color(0xFF92400E),
-      'icon': Icons.warning_amber_rounded,
-      'summary':
-          'Deselerasi frekuensi langkah dan tegangan optik tinggi pasca jam kerja panjang.',
-      'details': {
-        'suara': {'score': '62%', 'desc': 'Pitch vokal cenderung monoton'},
-        'gait': {'score': '58%', 'desc': 'Langkah melambat & variatif'},
-        'visual': {'score': '74%', 'desc': 'Frekuensi kedip mata turun signifikan'},
-        'sketsa': {'score': '65%', 'desc': 'Kerapatan goresan garis padat'},
-      },
-      'tips':
-          'Jalankan Protokol Istirahat: detoks layar 15 menit & rehidrasi 500ml air mineral.',
-    },
-    {
-      'id': 'SCR-2026-0929',
-      'date': '29 Sep 2026',
-      'time': '09:45 WIB',
-      'category': 'healthy',
-      'title': 'Kondisi Prima (Sehat)',
-      'score': 88,
-      'badgeText': 'Prima • 88/100',
-      'accentColor': NeoColors.greenDark,
-      'bgTint': NeoColors.greenLight,
-      'textColor': NeoColors.greenDark,
-      'icon': Icons.sentiment_satisfied_alt_rounded,
-      'summary':
-          'Kondisi mental dan motorik bugar setelah jeda istirahat akhir pekan teratur.',
-      'details': {
-        'suara': {'score': '89%', 'desc': 'Variasi frekuensi suara normal'},
-        'gait': {'score': '87%', 'desc': 'Kecepatan jalan konstan & mantap'},
-        'visual': {'score': '24%', 'desc': 'Fokus refraksi mata stabil'},
-        'sketsa': {'score': '30%', 'desc': 'Garis luwes tanpa penekanan tegang'},
-      },
-      'tips':
-          'Fokus kerja terarah. Luangkan peregangan ringan setiap 90 menit bekerja.',
-    },
-    {
-      'id': 'SCR-2026-0915',
-      'date': '15 Sep 2026',
-      'time': '21:10 WIB',
-      'category': 'extreme',
-      'title': 'Stres Akut & Beban Kognitif Berat',
-      'score': 41,
-      'badgeText': 'Kritis • 41/100',
-      'accentColor': NeoColors.redDark,
-      'bgTint': NeoColors.redLight,
-      'textColor': NeoColors.darkRedZombie,
-      'icon': Icons.error_outline_rounded,
-      'summary':
-          'Terdeteksi deselerasi motorik berat, tremor mikro, serta mikrosleep berulang.',
-      'details': {
-        'suara': {'score': '38%', 'desc': 'Intonasi lemah & tempo sangat lambat'},
-        'gait': {'score': '44%', 'desc': 'Ketidakstabilan akselerasi langkah'},
-        'visual': {'score': '89%', 'desc': 'Kelelahan saraf penglihatan akut'},
-        'sketsa': {'score': '85%', 'desc': 'Pola garis kaku & bertekanan tajam'},
-      },
-      'tips':
-          'Hentikan aktivitas segera, matikan notifikasi, dan prioritaskan istirahat tidur.',
-    },
-  ];
+  List<Map<String, dynamic>> _history = [];
+  bool _isLoading = true;
+  String? _error;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+    HistoryService.historyNotifier.addListener(_onHistoryUpdated);
+  }
+
+  @override
+  void dispose() {
+    HistoryService.historyNotifier.removeListener(_onHistoryUpdated);
+    super.dispose();
+  }
+
+  void _onHistoryUpdated() {
+    if (mounted) {
+      final updated = HistoryService.historyNotifier.value;
+      if (updated.isNotEmpty || authService.currentUserId == null) {
+        setState(() {
+          _history = updated;
+        });
+      }
+    }
+  }
+
+  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
+  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go /api/history)
+  /// dengan fallback ke penyimpanan lokal SharedPreferences jika offline
+  Future<void> _loadHistory() async {
+    final userId = authService.currentUserId;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final list = await HistoryService.getHistoryList(userId: userId);
+      if (!mounted) return;
+      setState(() {
+        _history = list;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan MySQL menyala.';
+      });
+    }
+  }
+
+  String get _averageScoreLabel {
+    if (_history.isEmpty) return '-';
+    final total = _history.fold<int>(0, (sum, item) => sum + (item['score'] as int));
+    return '${(total / _history.length).round()} / 100';
+  }
+
+  String get _latestConditionLabel {
+    if (_history.isEmpty) return '-';
+    switch (_history.first['category']) {
+      case 'healthy':
+        return 'Prima ✓';
+      case 'extreme':
+        return 'Kritis';
+      default:
+        return 'Burnout';
+    }
+  }
+
+  int _countCategory(String category) =>
+      _history.where((item) => item['category'] == category).length;
+
+  Widget _buildLoadingState() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 60),
+      child: Center(child: CircularProgressIndicator(color: NeoColors.primaryBlue)),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(top: 12),
+      decoration: BoxDecoration(
+        color: NeoColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: NeoColors.borderBlack, width: 2),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 40, color: NeoColors.redDark),
+          const SizedBox(height: 8),
+          Text(
+            _error ?? 'Terjadi kesalahan.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: NeoColors.darkGray,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 14),
+          NeoButton(
+            text: 'Coba Lagi',
+            icon: Icons.refresh_rounded,
+            backgroundColor: NeoColors.primaryBlue,
+            textColor: NeoColors.white,
+            onPressed: _loadHistory,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoHistoryState() {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      margin: const EdgeInsets.only(top: 12),
+      decoration: BoxDecoration(
+        color: NeoColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: NeoColors.borderBlack, width: 2),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.history_toggle_off_rounded, size: 40, color: NeoColors.darkGray),
+          SizedBox(height: 8),
+          Text(
+            'Belum ada riwayat diagnosis. Lakukan tes pertama Anda hari ini!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: NeoColors.darkGray,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _dummyHistory.where((item) {
+    final filtered = _history.where((item) {
       if (_selectedFilter == 'all') return true;
       return item['category'] == _selectedFilter;
     }).toList();
@@ -133,35 +185,48 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
             // Content List
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                children: [
-                  // Stat Overview Banner
-                  _buildStatBanner(),
-                  const SizedBox(height: 18),
+              child: RefreshIndicator(
+                onRefresh: _loadHistory,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                  children: [
+                    if (_isLoading)
+                      _buildLoadingState()
+                    else if (_error != null)
+                      _buildErrorState()
+                    else if (_history.isEmpty)
+                      _buildNoHistoryState()
+                    else ...[
+                      // Stat Overview Banner
+                      _buildStatBanner(),
+                      const SizedBox(height: 18),
 
-                  // Filter Chips
-                  _buildFilterChips(),
-                  const SizedBox(height: 16),
+                      // Filter Chips
+                      _buildFilterChips(),
+                      const SizedBox(height: 16),
 
-                  // History Cards
-                  if (filtered.isEmpty)
-                    _buildEmptyState()
-                  else
-                    ...filtered.map((item) => _buildHistoryCard(context, item)),
+                      // History Cards
+                      if (filtered.isEmpty)
+                        _buildEmptyState()
+                      else
+                        ...filtered.map((item) => _buildHistoryCard(context, item)),
+                    ],
 
-                  const SizedBox(height: 18),
+                    const SizedBox(height: 18),
 
-                  // Bottom Button to trigger new screening
-                  NeoButton(
-                    text: "+ Skrining Baru Sekarang",
-                    icon: Icons.add_chart_rounded,
-                    backgroundColor: NeoColors.primaryBlue,
-                    textColor: NeoColors.white,
-                    onPressed: widget.onStartNewScreening ?? () {},
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    // Bottom Button to trigger new screening
+                    NeoButton(
+                      text: "+ Skrining Baru Sekarang",
+                      icon: Icons.add_chart_rounded,
+                      backgroundColor: NeoColors.primaryBlue,
+                      textColor: NeoColors.white,
+                      onPressed: widget.onStartNewScreening ??
+                          () => Navigator.pushNamed(context, '/stage1'),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
           ],
@@ -173,79 +238,95 @@ class _HistoryScreenState extends State<HistoryScreen> {
   // --- HEADER BAR ---
   Widget _buildHeaderBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              InkWell(
-                onTap: widget.onBackToDashboard ?? () => Navigator.maybePop(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: NeoColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: NeoColors.borderBlack, width: 2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: NeoColors.borderBlack,
-                        offset: Offset(2, 2),
+          Expanded(
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: widget.onBackToDashboard ?? () => Navigator.maybePop(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: NeoColors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: NeoColors.borderBlack, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: NeoColors.borderBlack,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_rounded,
+                      size: 20,
+                      color: NeoColors.primaryBlue,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Riwayat Skrining',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: NeoColors.primaryBlue,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Rekapitulasi Multimodal AI',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: NeoColors.primaryBlue.withValues(alpha: 0.75),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    size: 20,
-                    color: NeoColors.primaryBlue,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Riwayat Skrining',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: NeoColors.primaryBlue,
-                      height: 1.1,
-                    ),
-                  ),
-                  Text(
-                    'Rekapitulasi Multimodal AI (Statis)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: NeoColors.primaryBlue.withValues(alpha: 0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: NeoColors.primaryYellow,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: NeoColors.borderBlack, width: 2),
-              boxShadow: const [
-                BoxShadow(
-                  color: NeoColors.borderBlack,
-                  offset: Offset(2, 2),
                 ),
               ],
             ),
-            child: Text(
-              '${_dummyHistory.length} Sesi',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: NeoColors.borderBlack,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: NeoColors.primaryYellow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: NeoColors.borderBlack, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: NeoColors.borderBlack,
+                    offset: Offset(1.5, 1.5),
+                  ),
+                ],
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '${_history.length} Sesi',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: NeoColors.borderBlack,
+                  ),
+                ),
               ),
             ),
           ),
@@ -263,11 +344,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatColumn('Total Sesi', '${_dummyHistory.length}', Icons.history_edu_rounded),
+          _buildStatColumn('Total Sesi', '${_history.length}', Icons.history_edu_rounded),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Rata-rata Skor', '71 / 100', Icons.analytics_outlined),
+          _buildStatColumn('Rata-rata Skor', _averageScoreLabel, Icons.analytics_outlined),
           Container(width: 1.5, height: 38, color: NeoColors.borderBlack.withValues(alpha: 0.15)),
-          _buildStatColumn('Kondisi Terkini', 'Prima ✓', Icons.verified_user_outlined),
+          _buildStatColumn('Kondisi Terkini', _latestConditionLabel, Icons.verified_user_outlined),
         ],
       ),
     );
@@ -307,10 +388,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   // --- FILTER CHIPS ---
   Widget _buildFilterChips() {
     final filters = [
-      {'key': 'all', 'label': 'Semua (${_dummyHistory.length})'},
-      {'key': 'healthy', 'label': 'Prima (2)'},
-      {'key': 'moderate', 'label': 'Burnout (1)'},
-      {'key': 'extreme', 'label': 'Kritis (1)'},
+      {'key': 'all', 'label': 'Semua (${_history.length})'},
+      {'key': 'healthy', 'label': 'Prima (${_countCategory('healthy')})'},
+      {'key': 'moderate', 'label': 'Burnout (${_countCategory('moderate')})'},
+      {'key': 'extreme', 'label': 'Kritis (${_countCategory('extreme')})'},
     ];
 
     return SingleChildScrollView(
@@ -612,29 +693,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                   // Header Modal
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['id'],
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: NeoColors.darkGray,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['id'],
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: NeoColors.darkGray,
+                              ),
                             ),
-                          ),
-                          Text(
-                            item['title'],
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: item['textColor'],
+                            const SizedBox(height: 2),
+                            Text(
+                              item['title'],
+                              softWrap: true,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: item['textColor'],
+                                height: 1.2,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/google_icon.dart';
+import '../widgets/google_auth_dialog.dart';
+import '../theme/theme_controller.dart';
 import 'dashboard_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -88,7 +90,22 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final success = await authService.loginWithGoogle();
+      final googleUser = await triggerGoogleSignInFlow(
+        context,
+        title: "Masuk dengan Google",
+        subtitle: "Pilih akun Google Anda untuk masuk ke RestGuard",
+      );
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final success = await authService.loginWithGoogleAccount(
+        email: googleUser.email,
+        name: googleUser.displayName,
+        googleId: googleUser.googleId,
+        setSession: true, // Masuk langsung ke Home
+      );
 
       if (!mounted) return;
 
@@ -96,6 +113,11 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        );
+      } else {
+        _showSnackBar(
+          message: "Login dengan Google gagal. Silakan coba kembali.",
+          isError: true,
         );
       }
     } catch (e) {
@@ -141,8 +163,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = themeController.isDarkMode;
+    final Color currentBg = isDark ? const Color(0xFF121217) : scaffoldBg;
+
     return Scaffold(
-      backgroundColor: scaffoldBg,
+      backgroundColor: currentBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

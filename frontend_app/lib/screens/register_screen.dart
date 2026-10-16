@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/google_icon.dart';
-import 'dashboard_screen.dart';
+import '../widgets/google_auth_dialog.dart';
+import '../theme/theme_controller.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -52,14 +54,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _emailController.text.trim(),
         _passwordController.text,
         name: _nameController.text.trim(),
+        autoLogin: false,
       );
 
       if (!mounted) return;
 
       if (success) {
+        _showSnackBar(
+          message: "Registrasi berhasil! Silakan masuk menggunakan akun yang baru Anda daftarkan.",
+          isSuccess: true,
+        );
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
     } catch (e) {
@@ -88,14 +95,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final success = await authService.loginWithGoogle();
+      final googleUser = await triggerGoogleSignInFlow(
+        context,
+        title: "Daftar dengan Google",
+        subtitle: "Pilih atau masukkan akun Google untuk mendaftar",
+      );
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final success = await authService.loginWithGoogleAccount(
+        email: googleUser.email,
+        name: googleUser.displayName,
+        googleId: googleUser.googleId,
+        setSession: false, // Tidak langsung masuk ke Home, melainkan ke Login
+      );
 
       if (!mounted) return;
 
       if (success) {
+        _showSnackBar(
+          message: "Registrasi berhasil! Silakan masuk menggunakan akun yang baru Anda daftarkan.",
+          isSuccess: true,
+        );
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
     } catch (e) {
@@ -118,7 +144,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _showSnackBar({required String message, bool isError = false}) {
+  void _showSnackBar({required String message, bool isError = false, bool isSuccess = false}) {
+    Color bg = primaryBlue;
+    if (isError) bg = const Color(0xFFDC2626);
+    if (isSuccess) bg = const Color(0xFF10B981); // Warna hijau sukses
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -129,7 +159,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             fontSize: 13,
           ),
         ),
-        backgroundColor: isError ? const Color(0xFFDC2626) : primaryBlue,
+        backgroundColor: bg,
+        duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -141,8 +172,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = themeController.isDarkMode;
+    final Color currentBg = isDark ? const Color(0xFF121217) : scaffoldBg;
+
     return Scaffold(
-      backgroundColor: scaffoldBg,
+      backgroundColor: currentBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

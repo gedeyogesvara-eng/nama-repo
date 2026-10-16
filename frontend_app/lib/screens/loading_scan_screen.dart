@@ -1,23 +1,26 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
+import '../services/auth_service.dart';
 import 'result_screen.dart';
 
 /// Halaman Loading Scan AI
 /// Menampilkan animasi visual scanner multimodal (Sklera, Suara, Gait),
-/// mengirimkan berkas data multimodal ke AI Service lokal (http://10.0.2.2:5000/api/detect),
+/// mengirimkan data multimodal (bytes) ke backend Go (POST /api/detect) yang
+/// meneruskannya ke server AI Python dan menyimpannya ke MySQL,
 /// lalu berpindah ke ResultScreen setelah respons diterima.
 class LoadingScanScreen extends StatefulWidget {
-  final String faceImagePath;
-  final String drawingImagePath;
-  final String audioPath;
+  final Uint8List? faceBytes;
+  final Uint8List? drawingBytes;
+  final Uint8List? audioBytes;
   final dynamic gaitData;
 
   const LoadingScanScreen({
     super.key,
-    this.faceImagePath = '',
-    this.drawingImagePath = '',
-    this.audioPath = '',
+    this.faceBytes,
+    this.drawingBytes,
+    this.audioBytes,
     this.gaitData = 'gait_recorded',
   });
 
@@ -78,12 +81,13 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     });
 
     try {
-      // Panggil AI Service nyata via Multipart POST Request
+      // Panggil backend nyata via Multipart POST Request (bytes, Web-safe)
       final resultData = await AIService.sendDataToAI(
-        faceImagePath: widget.faceImagePath,
-        drawingImagePath: widget.drawingImagePath,
-        audioPath: widget.audioPath,
+        faceImageBytes: widget.faceBytes,
+        drawingImageBytes: widget.drawingBytes,
+        audioBytes: widget.audioBytes,
         gaitData: widget.gaitData,
+        userId: authService.currentUserId,
       );
 
       if (!mounted) return;

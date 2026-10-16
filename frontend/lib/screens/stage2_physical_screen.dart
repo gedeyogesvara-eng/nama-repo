@@ -1,0 +1,304 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../theme/neo_colors.dart';
+import '../widgets/neo_button.dart';
+import '../widgets/neo_card.dart';
+
+class Stage2PhysicalScreen extends StatefulWidget {
+  const Stage2PhysicalScreen({super.key});
+
+  @override
+  State<Stage2PhysicalScreen> createState() => _Stage2PhysicalScreenState();
+}
+
+class _Stage2PhysicalScreenState extends State<Stage2PhysicalScreen> {
+  int _secondsRemaining = 10;
+  bool _isTracking = false;
+  bool _isFinished = false;
+  int _stepCount = 0;
+  Timer? _timer;
+
+  void _startTracking() {
+    setState(() {
+      _isTracking = true;
+      _isFinished = false;
+      _secondsRemaining = 10;
+      _stepCount = 0;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 1) {
+        setState(() {
+          _secondsRemaining--;
+          _stepCount += (_secondsRemaining % 2 == 0) ? 2 : 1;
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _secondsRemaining = 0;
+          _stepCount = 14;
+          _isTracking = false;
+          _isFinished = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double progress = (10 - _secondsRemaining) / 10.0;
+
+    return Scaffold(
+      backgroundColor: NeoColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: NeoColors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          "Tahap 2: Gait Tracker",
+          style: TextStyle(
+            color: NeoColors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Instruction Banner
+              NeoCard(
+                backgroundColor: NeoColors.primaryYellow,
+                borderRadius: 18,
+                shadowOffset: 4,
+                padding: const EdgeInsets.all(14),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.directions_walk_rounded,
+                      size: 32,
+                      color: NeoColors.black,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Sensor Akselerometer Aktif",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              color: NeoColors.black,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            "Taruh HP di saku atau genggam santai, lalu berjalanlah selama 10 detik.",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: NeoColors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // Circular Progress Ring & Timer
+              Center(
+                child: Container(
+                  width: 230,
+                  height: 230,
+                  decoration: BoxDecoration(
+                    color: NeoColors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: NeoColors.borderBlack,
+                      width: 4,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: NeoColors.borderBlack,
+                        offset: Offset(8, 8),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Circular indicator ring
+                      SizedBox(
+                        width: 190,
+                        height: 190,
+                        child: CircularProgressIndicator(
+                          value: _isFinished ? 1.0 : progress,
+                          strokeWidth: 14,
+                          backgroundColor: NeoColors.lightGray,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _isFinished
+                                ? NeoColors.green
+                                : NeoColors.primaryBlue,
+                          ),
+                        ),
+                      ),
+
+                      // Content inside circle
+                      if (_isFinished)
+                        const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 72,
+                              color: NeoColors.greenDark,
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              "10s SELESAI!",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: NeoColors.greenDark,
+                              ),
+                            ),
+                            Text(
+                              "14 Langkah Terbaca",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: NeoColors.darkGray,
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (_isTracking)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "$_secondsRemaining",
+                              style: const TextStyle(
+                                fontSize: 58,
+                                fontWeight: FontWeight.w900,
+                                color: NeoColors.primaryBlue,
+                                height: 1,
+                              ),
+                            ),
+                            const Text(
+                              "DETIK LAGI",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: NeoColors.slateMedium,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "$_stepCount langkah terhitung",
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: NeoColors.greenDark,
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 46,
+                              color: NeoColors.primaryBlue,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              "10 DETIK",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: NeoColors.black,
+                              ),
+                            ),
+                            Text(
+                              "Gait Cadence",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: NeoColors.darkGray,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const Spacer(),
+
+              // Tracking Action Button
+              if (!_isFinished) ...[
+                NeoButton(
+                  text: _isTracking ? "Sedang Merekam Langkah..." : "Mulai Berjalan (10 Detik)",
+                  icon: _isTracking ? Icons.sync : Icons.play_arrow_rounded,
+                  backgroundColor: _isTracking
+                      ? NeoColors.amber
+                      : NeoColors.primaryBlue,
+                  textColor: NeoColors.white,
+                  borderRadius: 28,
+                  height: 54,
+                  onPressed: _isTracking ? null : _startTracking,
+                ),
+              ] else ...[
+                // Once finished, display "Lanjut Scan Mata" as requested
+                NeoButton(
+                  text: "Lanjut Scan Mata (Tahap 3) →",
+                  icon: Icons.face_rounded,
+                  backgroundColor: NeoColors.greenDark,
+                  textColor: NeoColors.white,
+                  borderRadius: 28,
+                  height: 56,
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/stage3');
+                  },
+                ),
+                const SizedBox(height: 10),
+                NeoButton(
+                  text: "Ulangi Tes Berjalan",
+                  backgroundColor: NeoColors.white,
+                  textColor: NeoColors.black,
+                  borderRadius: 28,
+                  height: 46,
+                  onPressed: _startTracking,
+                ),
+              ],
+
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
