@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../widgets/google_icon.dart';
 import '../widgets/google_auth_dialog.dart';
 import '../theme/theme_controller.dart';
+import 'dashboard_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -109,19 +110,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: googleUser.email,
         name: googleUser.displayName,
         googleId: googleUser.googleId,
-        setSession: false, // Tidak langsung masuk ke Home, melainkan ke Login
+        setSession: true, // Langsung aktifkan sesi masuk dan menuju ke Dashboard
       );
 
       if (!mounted) return;
 
       if (success) {
         _showSnackBar(
-          message: "Registrasi berhasil! Silakan masuk menggunakan akun yang baru Anda daftarkan.",
+          message: "Akun Google ${googleUser.email} berhasil terdaftar dan masuk!",
           isSuccess: true,
         );
-        Navigator.pushReplacement(
+        Navigator.pushNamedAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          '/dashboard',
+          (route) => false,
         );
       }
     } catch (e) {

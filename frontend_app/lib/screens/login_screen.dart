@@ -110,9 +110,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (success) {
-        Navigator.pushReplacement(
+        _showSnackBar(
+          message: "Berhasil masuk dengan akun Google: ${googleUser.email}!",
+        );
+        Navigator.pushNamedAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          '/dashboard',
+          (route) => false,
         );
       } else {
         _showSnackBar(

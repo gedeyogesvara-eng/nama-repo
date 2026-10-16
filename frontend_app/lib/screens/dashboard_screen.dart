@@ -626,10 +626,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       borderRadius: 16,
                       onPressed: () async {
                         Navigator.pop(ctx);
-                        await authService.signOut();
-                        if (context.mounted) {
-                          Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
-                        }
+                        await authService.signOut(context, '/welcome');
                       },
                     ),
                   ],

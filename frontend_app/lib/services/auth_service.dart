@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import '../widgets/google_auth_dialog.dart';
 
 /// ============================================================================
 /// AUTENTIKASI MELALUI BACKEND GO + MySQL DENGAN FALLBACK LOKAL
@@ -517,20 +518,27 @@ class Auth {
     return false;
   }
 
-  /// Logout dari sesi saat ini
-  Future<void> signOut([BuildContext? context]) async {
+  /// Logout dari sesi saat ini dan bersihkan state Google di aplikasi
+  /// (Sesi Google di browser Chrome tetap utuh sehingga login berikutnya tidak butuh password)
+  Future<void> signOut([BuildContext? context, String redirectTo = '/welcome']) async {
+    try {
+      await triggerGoogleSignOut();
+    } catch (e) {
+      debugPrint('Gagal sign out dari Google: $e');
+    }
     await _setSession(null);
     final navContext = context ?? navigatorKey.currentContext;
     if (navContext != null && navContext.mounted) {
       Navigator.of(navContext).pushNamedAndRemoveUntil(
-        '/welcome',
+        redirectTo,
         (route) => false,
       );
     }
   }
 
   /// Alias logout
-  Future<void> logout([BuildContext? context]) => signOut(context);
+  Future<void> logout([BuildContext? context, String redirectTo = '/welcome']) =>
+      signOut(context, redirectTo);
 }
 
 typedef AuthService = Auth;

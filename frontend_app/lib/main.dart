@@ -17,7 +17,6 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/history_screen.dart';
-import 'screens/home_screen.dart';
 import 'screens/anti_zombie_recipe_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

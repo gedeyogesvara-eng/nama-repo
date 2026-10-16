@@ -357,10 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
 
     if (shouldLogout == true && context.mounted) {
-      await authService.signOut(context);
-      if (context.mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-      }
+      await authService.signOut(context, '/welcome');
     }
   }
 
