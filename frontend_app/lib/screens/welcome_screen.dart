@@ -65,85 +65,53 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 36),
 
-                      // Logo / Ilustrasi Estetis di Bagian Atas
+                      // Logo Aplikasi Destress
                       Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: 140,
-                              height: 140,
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.12),
-                                    blurRadius: 30,
-                                    offset: const Offset(0, 10),
-                                  ),
-                                ],
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.12),
+                                blurRadius: 28,
+                                offset: const Offset(0, 10),
                               ),
-                              child: Center(
-                                child: Container(
-                                  width: 88,
-                                  height: 88,
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [Color(0xFF314BB5), Color(0xFF253B99)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.shield_rounded,
-                                      size: 44,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 2,
-                              right: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(7),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(28),
+                            child: Image.asset(
+                              'assets/images/logo.jpg',
+                              height: 150,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                width: 150,
+                                height: 150,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFBBF24),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFBBF24).withValues(alpha: 0.4),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
+                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                  borderRadius: BorderRadius.circular(28),
                                 ),
                                 child: const Icon(
-                                  Icons.favorite_rounded,
-                                  size: 16,
-                                  color: Colors.white,
+                                  Icons.spa_rounded,
+                                  size: 64,
+                                  color: primaryBlue,
                                 ),
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 32),
 
-                      // Teks Judul RESTGUARD
+                      // Teks Judul Destress
                       Text(
-                        "RESTGUARD",
+                        "Destress",
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 32,
                           fontWeight: FontWeight.w900,
                           color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          letterSpacing: 1.2,
+                          letterSpacing: 0.5,
                           height: 1.15,
                         ),
                       ),

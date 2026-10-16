@@ -33,17 +33,26 @@ class ApiConfig {
     } catch (_) {}
   }
 
+  /// URL Default untuk Android Emulator (10.0.2.2 mengarah ke localhost mesin induk)
+  static const String emulatorUrl = 'http://10.0.2.2:8081';
+
+  /// URL Default untuk HP Fisik via Wi-Fi lokal (ganti dengan IP laptop Anda)
+  static const String physicalDeviceUrl = 'http://192.168.18.12:8081';
+
+  /// URL Default untuk Web & Desktop
+  static const String desktopUrl = 'http://localhost:8081';
+
   /// Mengembalikan basis URL aktif saat ini
   static String get baseUrl {
     if (_customUrl != null && _customUrl!.isNotEmpty) {
       return _customUrl!;
     }
     if (_override.isNotEmpty) return _override;
-    if (kIsWeb) return 'http://localhost:8081';
+    if (kIsWeb) return desktopUrl;
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // IP Laptop di jaringan Wi-Fi untuk testing APK di HP Android fisik
-      return 'http://192.168.18.12:8081';
+      // Gunakan emulatorUrl untuk Android Emulator, atau physicalDeviceUrl untuk HP fisik
+      return emulatorUrl;
     }
-    return 'http://localhost:8081';
+    return desktopUrl;
   }
 }

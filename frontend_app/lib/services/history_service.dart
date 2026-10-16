@@ -134,12 +134,12 @@ class HistoryService {
   }
 
   /// Mengambil daftar riwayat diagnosis skrining:
-  /// Prioritas UTAMA: Mengambil langsung (GET) dari Supabase Cloud (`screening_history`).
+  /// Prioritas UTAMA: Mengambil langsung (GET) dari Server Backend MySQL Lokal.
   /// SharedPreferences HANYA digunakan sebagai cadangan (fallback offline).
   static Future<List<Map<String, dynamic>>> getHistoryList({int? userId}) async {
     final effectiveUserId = userId ?? authService.currentUserId ?? 1;
 
-    // 1. Coba ambil dari Supabase Cloud via BackendService
+    // 1. Coba ambil dari Backend MySQL Lokal via BackendService HTTP GET
     try {
       final rows = await BackendService.fetchHistory(effectiveUserId);
       if (rows.isNotEmpty) {
@@ -152,11 +152,11 @@ class HistoryService {
           await prefs.setString(keyHistory, jsonEncode(list));
         } catch (_) {}
 
-        debugPrint("🌐 [HistoryService] Berhasil mengambil ${list.length} riwayat dari Supabase Cloud");
+        debugPrint("🌐 [HistoryService] Berhasil mengambil ${list.length} riwayat dari Server MySQL Lokal");
         return list;
       }
     } catch (e) {
-      debugPrint("⚠️ [HistoryService] Gagal memuat dari Supabase Cloud ($e). Menggunakan cadangan lokal...");
+      debugPrint("⚠️ [HistoryService] Server lokal mati / tidak merespons ($e). Menggunakan cadangan lokal...");
     }
 
     // 2. Fallback offline: Ambil dari SharedPreferences lokal

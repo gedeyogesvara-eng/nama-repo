@@ -23,7 +23,6 @@ dependencies:
   flutter_local_notifications: ^22.3.2
   timezone: ^0.11.2
   sensors_plus: ^7.1.1
-  supabase_flutter: ^2.18.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -34,5 +33,5 @@ flutter:
   assets:
     - assets/lukisan_siang.svg
     - assets/lukisan_malam.svg
-    - assets/images/lukisan_siang.svg
-    - assets/images/lukisan_malam.svg
+    - assets/images/
+    - assets/images/logo.jpg

@@ -2,10 +2,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/auth_service.dart';
 import 'services/api_config.dart';
-import 'services/supabase_config.dart';
 import 'theme/theme_controller.dart';
 import 'screens/splash_screen.dart';
 import 'screens/loading_scan_screen.dart';
@@ -24,20 +22,7 @@ import 'screens/anti_zombie_recipe_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi Supabase
-  try {
-    await Supabase.initialize(
-      url: 'https://zqtcqkjxebrabrvifygn.supabase.co',
-      // ignore: deprecated_member_use
-      anonKey:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdGNxa2p4ZWJyYWJydmlmeWduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTM4NzEsImV4cCI6MjEwNzcyOTg3MX0.62WR8qPsDPz6Ij315VJYsctKoXOc3iR8lmwlZspd7OA',
-    );
-  } catch (_) {
-    // Fallback otomatis jika 'URL_ANDA' belum diganti dengan Project URL asli
-    await SupabaseConfig.init();
-  }
-
-  // Inisialisasi konfigurasi API & SharedPreferences
+  // Inisialisasi konfigurasi API & SharedPreferences (MySQL Lokal / Backend Go)
   await ApiConfig.init();
 
   // Inisialisasi Tema Aplikasi (Light / Dark Mode)
@@ -103,7 +88,7 @@ class DepressionDetectionApp extends StatelessWidget {
       builder: (context, currentMode, _) {
         return MaterialApp(
           navigatorKey: authService.navigatorKey,
-          title: 'RESTGUARD - Mental Health & Fatigue Detection',
+          title: 'Destress',
           debugShowCheckedModeBanner: false,
           themeMode: currentMode,
           theme: ThemeData(
@@ -267,7 +252,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   // State untuk Stage 3: Visual Scan
   bool _captureSuccess = false;
 
-  // State untuk Stage 9: Resep Anti-Zombi Checklist
+  // State untuk Stage 9: Destress Checklist
   final Map<String, bool> _checkedInterventions = {
     'stretch': false,
     'coffee': false,
@@ -278,7 +263,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   final List<Offset?> _drawingPoints = [];
 
   final List<Map<String, String>> _screensList = const [
-    {'id': 'welcome', 'name': '0. Welcome (RESTGUARD)'},
+    {'id': 'welcome', 'name': '0. Welcome (Destress)'},
     {'id': 'login', 'name': '0a. Login Screen'},
     {'id': 'register', 'name': '0b. Register Screen'},
     {'id': 'forgot_password', 'name': '0c. Reset Password'},
@@ -293,7 +278,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
     {'id': 'result_moderate', 'name': '9. Hasil: Burnout'},
     {'id': 'result_extreme', 'name': '10. Hasil: Ekstrem'},
     {'id': 'history', 'name': '11. Riwayat Skrining'},
-    {'id': 'loading_scan', 'name': '12. AI Scan & Resep'},
+    {'id': 'loading_scan', 'name': '12. AI Scan & Destress'},
   ];
 
   void _setScreen(String screenName) {
@@ -802,7 +787,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Nama Aplikasi',
+                'Destress',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -1225,7 +1210,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
 
                 const SizedBox(height: 18),
                 const Text(
-                  'Nama Aplikasi',
+                  'Destress',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -2457,7 +2442,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               ),
               const SizedBox(height: 18),
 
-              // Recipe Card: Resep Anti-Zombi
+              // Card: Destress
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Container(
@@ -2483,7 +2468,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            '📋 Resep Anti-Zombi',
+                            '📋 Destress',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -2542,11 +2527,11 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
             ],
           ),
 
-          // Selesaikan Resep Button
+          // Selesaikan Destress Button
           Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
             child: _buildNeoPillButton(
-              text: 'Selesaikan Resep',
+              text: 'Selesaikan Destress',
               icon: Icons.check_rounded,
               backgroundColor: AppColors.primaryYellow,
               textColor: AppColors.primaryBlue,
@@ -2616,7 +2601,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
   }
 
   // ==========================================
-  // 10. SCREEN: RESULT EXTREME (ZOMBI AKUT)
+  // 10. SCREEN: RESULT EXTREME (KELELAHAN AKUT / DESTRESS)
   // ==========================================
   Widget _buildResultExtremeScreen() {
     return Container(
@@ -2632,7 +2617,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               ),
               const SizedBox(height: 8),
 
-              // Zombie Alert Icon Circle
+              // Destress Alert Icon Circle
               Container(
                 width: 92,
                 height: 92,
@@ -2659,7 +2644,7 @@ class _PrototypeRootScreenState extends State<PrototypeRootScreen> {
               const SizedBox(height: 16),
 
               const Text(
-                'Peringatan Mode Zombi Akut',
+                'Peringatan Kelelahan Akut',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
