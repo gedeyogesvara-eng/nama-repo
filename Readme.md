@@ -56,7 +56,7 @@ Aplikasi ini didukung oleh infrastruktur *microservices* dengan spesifikasi tekn
 Untuk tim penilai (Juri), aplikasi dapat diuji coba dengan langkah-langkah berikut:
 
 ### 1. Pengujian Aplikasi Android (Frontend)
-1. Unduh *file* APK rilis kami: `"nama.apk"`.
+1. Unduh *file* APK rilis kami: `"Destress.apk"`.
 2. Instal *file* APK tersebut pada perangkat Android Anda.
 3. Pastikan perangkat terhubung ke internet. Aplikasi akan otomatis berkomunikasi dengan *server backend* dan *Core Engine AI* kami yang telah di-*deploy*.
 
