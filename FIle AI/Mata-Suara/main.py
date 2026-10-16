@@ -8,6 +8,7 @@ import urllib.request
 import numpy as np
 import librosa
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from tensorflow.keras.applications import MobileNetV2
