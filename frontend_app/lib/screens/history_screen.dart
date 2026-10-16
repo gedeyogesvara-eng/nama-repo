@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/backend_service.dart';
 import '../services/history_service.dart';
 import '../theme/neo_colors.dart';
 import '../widgets/neo_button.dart';
@@ -27,10 +26,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-  ];
 
   @override
   void initState() {
@@ -57,33 +52,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go)
-  /// dengan fallback ke penyimpanan lokal HistoryService (SharedPreferences)
+  /// Memuat riwayat skrining milik user yang sedang login dari MySQL (via backend Go /api/history)
+  /// dengan fallback ke penyimpanan lokal SharedPreferences jika offline
   Future<void> _loadHistory() async {
     final userId = authService.currentUserId;
-    if (userId != null) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
-      try {
-        final rows = await BackendService.fetchHistory(userId);
-        if (rows.isNotEmpty) {
-          if (!mounted) return;
-          setState(() {
-            _history = rows.map(_mapSession).toList();
-            _isLoading = false;
-          });
-          return;
-        }
-      } catch (e) {
-        debugPrint('Gagal memuat riwayat dari server: $e');
-      }
-    }
-
-    // Fallback ke penyimpanan lokal HistoryService (SharedPreferences)
     try {
-      final list = await HistoryService.getHistoryList();
+      final list = await HistoryService.getHistoryList(userId: userId);
       if (!mounted) return;
       setState(() {
         _history = list;
@@ -97,115 +76,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan MySQL menyala.';
       });
     }
-  }
-
-  Color _resolveColor(dynamic val, Color fallback) {
-    if (val is Color) return val;
-    if (val is int) return Color(val);
-    return fallback;
-  }
-
-  IconData _resolveIcon(dynamic iconVal, dynamic category) {
-    if (iconVal is IconData) return iconVal;
-    if (category == 'extreme') return Icons.error_outline_rounded;
-    if (category == 'healthy') return Icons.sentiment_very_satisfied_rounded;
-    return Icons.warning_amber_rounded;
-  }
-
-  /// Mengubah satu baris `screening_sessions` dari backend menjadi struktur kartu riwayat
-  Map<String, dynamic> _mapSession(Map<String, dynamic> s) {
-    int asInt(dynamic v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-
-    final int voiceScore = asInt(s['voice_score']) > 0 ? asInt(s['voice_score']) : asInt(s['skor_akustik']);
-    final int visualScore = asInt(s['visual_score']) > 0 ? asInt(s['visual_score']) : asInt(s['skor_sklera']);
-    int sketchScore = asInt(s['sketch_score']) > 0 ? asInt(s['sketch_score']) : asInt(s['skor_motorik']);
-    int gaitScore = asInt(s['gait_score']) > 0 ? asInt(s['gait_score']) : asInt(s['skor_motorik']);
-
-    // Dapatkan persentase mandiri dan berbeda jika skor kembar identik
-    if (sketchScore == gaitScore && sketchScore > 0) {
-      sketchScore = (sketchScore - 6).clamp(18, 92);
-      gaitScore = (gaitScore + 5).clamp(18, 95);
-    }
-
-    final int avg = ((voiceScore + visualScore + sketchScore + gaitScore) / 4).round().clamp(0, 100);
-
-    final String kategori = (s['kategori_burnout'] ?? 'Kelelahan Terdeteksi').toString();
-    final String lower = kategori.toLowerCase();
-    final bool emergency = s['is_emergency'] == true;
-
-    late final String category;
-    late final String label;
-    late final Color accent;
-    late final Color tint;
-    late final Color text;
-    late final IconData icon;
-    if (emergency || lower.contains('zombi akut')) {
-      category = 'extreme';
-      label = 'Kritis';
-      accent = NeoColors.redDark;
-      tint = NeoColors.redLight;
-      text = NeoColors.darkRedZombie;
-      icon = Icons.error_outline_rounded;
-    } else if (lower.contains('stabil') || lower.contains('sehat') || lower.contains('prima')) {
-      category = 'healthy';
-      label = 'Prima';
-      accent = NeoColors.greenDark;
-      tint = NeoColors.greenLight;
-      text = NeoColors.greenDark;
-      icon = Icons.sentiment_very_satisfied_rounded;
-    } else {
-      category = 'moderate';
-      label = 'Burnout';
-      accent = NeoColors.amber;
-      tint = const Color(0xFFFEF3C7);
-      text = const Color(0xFF92400E);
-      icon = Icons.warning_amber_rounded;
-    }
-
-    final DateTime? created = DateTime.tryParse('${s['created_at']}')?.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    final String date = created == null
-        ? '-'
-        : '${two(created.day)} ${_months[created.month - 1]} ${created.year}';
-    final String time = created == null ? '-' : '${two(created.hour)}:${two(created.minute)}';
-
-    final String eyeLabel = (s['eye_label'] ?? 'Normal (Sehat)').toString();
-    final String audioLabel = (s['audio_label'] ?? 'Vokal Normal (Stabil)').toString();
-    final String sketchLabel = (s['sketch_label'] ?? 'Pola Coretan Rileks & Kontinu').toString();
-    final String gaitLabel = (s['gait_label'] ?? 'Langkah Stabil & Terkoordinasi').toString();
-
-    String diagSummary = (s['diagnosis_summary'] ?? '').toString();
-    if (diagSummary.isEmpty) {
-      diagSummary = 'Mata: $eyeLabel ($visualScore%) • Suara: $audioLabel ($voiceScore%) • Sketsa: $sketchLabel ($sketchScore%) • Gait: $gaitLabel ($gaitScore%)';
-    }
-
-    String tips = 'Pertahankan ritme istirahat dan hidrasi yang teratur.';
-    final recipes = s['ai_recipes'];
-    if (recipes is List && recipes.isNotEmpty && recipes.first is Map) {
-      tips = ((recipes.first as Map)['deskripsi_tugas'] ?? tips).toString();
-    }
-
-    return {
-      'id': (s['id_skrining'] ?? '-').toString(),
-      'date': date,
-      'time': time,
-      'category': category,
-      'title': kategori,
-      'score': avg,
-      'badgeText': '$label • $avg/100',
-      'accentColor': accent,
-      'bgTint': tint,
-      'textColor': text,
-      'icon': icon,
-      'summary': diagSummary,
-      'details': {
-        'suara': {'score': '$voiceScore%', 'desc': audioLabel},
-        'gait': {'score': '$gaitScore%', 'desc': gaitLabel},
-        'visual': {'score': '$visualScore%', 'desc': eyeLabel},
-        'sketsa': {'score': '$sketchScore%', 'desc': sketchLabel},
-      },
-      'tips': tips,
-    };
   }
 
   String get _averageScoreLabel {

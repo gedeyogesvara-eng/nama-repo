@@ -239,7 +239,7 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "Tahap 3: Visual & Sclera Scan",
+          "Tahap 3: Foto Mata",
           style: TextStyle(
             color: NeoColors.black,
             fontSize: 18,
@@ -272,9 +272,9 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "Posisikan wajah & sklera mata di dalam oval. Tahan sejenak.",
+                        "Tatap layar dan ambil foto matamu",
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: NeoColors.black,
                         ),
@@ -446,8 +446,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                                     const SizedBox(width: 6),
                                     Text(
                                       _isCaptured
-                                          ? "BIOMARKER TERKUNCI"
-                                          : "Live Eye-Tracking",
+                                          ? "FOTO DIAMBIL"
+                                          : "Kamera Aktif",
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 10,
@@ -547,8 +547,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                                     ),
                                     child: Text(
                                       _isCaptured
-                                          ? "Frame Terkunci!\nMengambil Foto..."
-                                          : "Posisikan Wajah & Sklera",
+                                          ? "Foto Berhasil Diambil!"
+                                          : "Arahkan Matamu ke Sini",
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: _isCaptured
@@ -594,8 +594,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
                             ),
                             child: Text(
                               _isCaptured
-                                  ? "Micro-Expression Detected: 468 Landmarks"
-                                  : "Deteksi Biometrik: Siap Mengunci",
+                                  ? "Foto siap diproses"
+                                  : "Tatap kamera dengan nyaman",
                               style: TextStyle(
                                 color: _isCaptured
                                     ? NeoColors.greenLight
@@ -617,8 +617,8 @@ class _Stage3VisualScreenState extends State<Stage3VisualScreen> {
               // Tombol Utama: Buka Kamera / Ambil Foto
               NeoButton(
                 text: _isCaptured
-                    ? "✓ Memproses Multimodal Data..."
-                    : "Buka Kamera (Ambil Foto)",
+                    ? "✓ Menyimpan Foto..."
+                    : "Ambil Foto Mata",
                 icon: _isCaptured ? Icons.check : Icons.camera_rounded,
                 backgroundColor:
                     _isCaptured ? NeoColors.greenDark : NeoColors.primaryBlue,

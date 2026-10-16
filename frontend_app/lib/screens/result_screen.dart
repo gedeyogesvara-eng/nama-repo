@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
 import '../services/auth_service.dart';
 import '../services/backend_service.dart';
+import 'relaxation_drawing_screen.dart';
 
 /// Halaman Hasil Deteksi AI
 /// Menampilkan ringkasan diagnosis, 3 indikator metrik sensor,
@@ -208,7 +209,11 @@ class _ResultScreenState extends State<ResultScreen> {
                   _buildRecipesSection(completedCount, totalCount),
                   const SizedBox(height: 28),
 
-                  // 4. Tombol Selesai / Navigasi Beranda
+                  // 4. Saran Relaksasi Menggambar (Tombol Besar)
+                  _buildRelaxationSuggestionCard(),
+                  const SizedBox(height: 16),
+
+                  // 5. Tombol Selesai / Navigasi Beranda
                   _buildBottomActionButton(),
                   const SizedBox(height: 32),
                 ],
@@ -775,6 +780,115 @@ class _ResultScreenState extends State<ResultScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SARAN RELAKSASI MENGGAMBAR (TOMBOL BESAR) ---
+  Widget _buildRelaxationSuggestionCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: primaryBlue,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderBlack, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: borderBlack,
+            offset: Offset(3.5, 3.5),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.palette_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "SARAN PEMULIHAN CEPAT",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFFDE68A),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    Text(
+                      "Lepaskan Beban Pikiran",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "Coretan bebas terbukti membantu menenangkan sistem saraf dan meredakan ketegangan mental setelah skrining.",
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white70,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Tombol Berukuran Besar "Mari Rileks Sejenak"
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RelaxationDrawingScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.brush_rounded, color: primaryBlue, size: 20),
+              label: const Text(
+                "Mari Rileks Sejenak",
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: primaryBlue,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: const BorderSide(color: borderBlack, width: 2),
+                ),
+                elevation: 0,
+              ),
             ),
           ),
         ],

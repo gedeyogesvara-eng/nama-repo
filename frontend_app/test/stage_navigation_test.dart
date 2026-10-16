@@ -24,7 +24,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(Stage1MentalScreen), findsOneWidget);
-      expect(find.text("Tahap 1: Draw & Talk"), findsOneWidget);
+      expect(find.text("Tahap 1: Curhat Suara"), findsOneWidget);
       expect(find.text("Lanjut ke Tahap 2 →"), findsOneWidget);
     });
 
@@ -61,8 +61,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text("Tahap 3: Visual & Sclera Scan"), findsOneWidget);
-      expect(find.text("Buka Kamera (Ambil Foto)"), findsOneWidget);
+      expect(find.text("Tahap 3: Foto Mata"), findsOneWidget);
+      expect(find.text("Ambil Foto Mata"), findsOneWidget);
       expect(find.text("📁 Pilih dari Galeri"), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
@@ -76,7 +76,14 @@ void main() {
       expect(fallback['data_skrining']['kategori_burnout'], isNotEmpty);
     });
 
-    testWidgets('ResultScreen renders successfully with default/fallback data', (WidgetTester tester) async {
+    testWidgets('ResultScreen renders successfully with relaxation suggestion button', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(
         const MaterialApp(
           home: ResultScreen(),
@@ -85,6 +92,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(ResultScreen), findsOneWidget);
+      expect(find.text("Mari Rileks Sejenak"), findsOneWidget);
     });
   });
 }

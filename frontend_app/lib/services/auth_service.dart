@@ -387,7 +387,7 @@ class Auth {
     }
   }
 
-  /// c. Autentikasi / Registrasi Google langsung ke MySQL melalui Go Backend (/api/auth/google)
+  /// c. Autentikasi / Registrasi Google langsung ke MySQL melalui Go Backend (/api/users & /api/auth/google)
   Future<bool> loginWithGoogleAccount({
     required String email,
     String? name,
@@ -401,16 +401,29 @@ class Auth {
     final cleanName = (name != null && name.trim().isNotEmpty)
         ? name.trim()
         : cleanEmail.split('@').first;
+    final effectiveUid = (googleId != null && googleId.trim().isNotEmpty)
+        ? googleId.trim()
+        : cleanEmail;
 
+    final payload = {
+      'uid': effectiveUid,
+      'google_id': effectiveUid,
+      'email': cleanEmail,
+      'name': cleanName,
+      'full_name': cleanName,
+    };
+
+    // 1. Kirim data pengguna (UID, Nama, Email) via HTTP POST ke backend Go untuk disimpan/dicek di database MySQL
     try {
-      final data = await _post('/api/auth/google', {
-        'email': cleanEmail,
-        'full_name': cleanName,
-        'google_id': googleId ?? '',
-      });
+      Map<String, dynamic> data;
+      try {
+        data = await _post('/api/users', payload);
+      } catch (_) {
+        data = await _post('/api/auth/google', payload);
+      }
 
       if (setSession) {
-        final userJson = data['user'];
+        final userJson = data['user'] ?? data['data'];
         if (userJson is Map<String, dynamic>) {
           final user = AppUser.fromJson(userJson);
           if (user.userId > 0) {
@@ -429,7 +442,7 @@ class Auth {
     if (setSession) {
       final localUser = AppUser(
         userId: 2,
-        uid: googleId ?? cleanEmail,
+        uid: effectiveUid,
         displayName: cleanName,
         email: cleanEmail,
       );
