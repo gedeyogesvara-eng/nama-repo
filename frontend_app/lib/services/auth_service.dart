@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'backend_service.dart';
 
 /// ============================================================================
 /// AUTENTIKASI MELALUI BACKEND GO + MySQL DENGAN FALLBACK LOKAL
@@ -294,7 +295,32 @@ class Auth {
       await prefs.setBool(_keyIsLoggedIn, true);
     }
 
-    // 2. Kirim ke backend Go jika aktif
+    // 2. Simpan data akun ke Supabase (tabel `users`)
+    try {
+      final supabaseUser = await BackendService.insertUser({
+        'uid': cleanEmail,
+        'email': cleanEmail,
+        'nama': cleanName,
+        'full_name': cleanName,
+      });
+
+      if (supabaseUser != null && supabaseUser['id'] != null && supabaseUser['id'] != 1) {
+        if (autoLogin) {
+          final user = AppUser.fromJson(supabaseUser);
+          if (user.userId > 0) {
+            await _setSession(user);
+            return true;
+          }
+        } else {
+          await _setSession(null);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Supabase register note: $e');
+    }
+
+    // Fallback backend HTTP (jika ada server backend aktif)
     try {
       final data = await _post('/api/register', {
         'full_name': cleanName,
@@ -413,7 +439,26 @@ class Auth {
       'full_name': cleanName,
     };
 
-    // 1. Kirim data pengguna (UID, Nama, Email) via HTTP POST ke backend Go untuk disimpan/dicek di database MySQL
+    // 1. Simpan data pengguna (UID, Nama, Email) ke Supabase (tabel `users`)
+    try {
+      final supabaseUser = await BackendService.insertUser(payload);
+      if (supabaseUser != null && supabaseUser['id'] != null && supabaseUser['id'] != 1) {
+        if (setSession) {
+          final user = AppUser.fromJson(supabaseUser);
+          if (user.userId > 0) {
+            await _setSession(user);
+            return true;
+          }
+        } else {
+          await _setSession(null);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Google login via Supabase note: $e');
+    }
+
+    // Fallback backend HTTP
     try {
       Map<String, dynamic> data;
       try {

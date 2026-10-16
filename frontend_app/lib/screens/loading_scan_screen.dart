@@ -5,11 +5,18 @@ import '../services/ai_service.dart';
 import '../services/auth_service.dart';
 import 'result_screen.dart';
 
-/// Halaman Loading Scan AI
+/// Halaman Loading Scan AI (Layar Loading Hasil Diagnosis)
 /// Menampilkan animasi visual scanner multimodal (Sklera, Suara, Gait),
 /// mengirimkan data multimodal (bytes) ke backend Go (POST /api/detect) yang
 /// meneruskannya ke server AI Python dan menyimpannya ke MySQL,
 /// lalu berpindah ke ResultScreen setelah respons diterima.
+///
+/// Didesain dengan gaya 'Modern Clean':
+/// - Background putih/abu-abu terang (adaptif ke Dark Mode)
+/// - Elemen dominan Deep Blue (#314BB5)
+/// - Card tengah melengkung elegan (BorderRadius.circular(32))
+/// - Indikator loading CircularProgressIndicator halus dan lembut
+/// - Shadow sangat halus dan transparan (tanpa border hitam/shadow kaku)
 class LoadingScanScreen extends StatefulWidget {
   final Uint8List? faceBytes;
   final Uint8List? drawingBytes;
@@ -30,13 +37,9 @@ class LoadingScanScreen extends StatefulWidget {
 
 class _LoadingScanScreenState extends State<LoadingScanScreen>
     with SingleTickerProviderStateMixin {
-  // Palet Warna Neo-Brutalism
-  static const Color appBg = Color(0xFFF2F1EB);
   static const Color primaryBlue = Color(0xFF314BB5);
-  static const Color primaryDark = Color(0xFF1E2D75);
-  static const Color grayText = Color(0xFF5C5C5C);
-  static const Color borderBlack = Color(0xFF000000);
-  static const Color accentYellow = Color(0xFFFFC436);
+  static const Color accentGreen = Color(0xFF10B981);
+  static const Color accentAmber = Color(0xFFF59E0B);
 
   late AnimationController _animController;
   int _currentStepIndex = 0;
@@ -55,13 +58,11 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
   void initState() {
     super.initState();
 
-    // Controller untuk animasi pulse rotasi & gelombang
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..repeat();
 
-    // Timer untuk memutar teks tahapan analisis
     _stepTimer = Timer.periodic(const Duration(milliseconds: 1400), (timer) {
       if (!mounted) return;
       if (_currentStepIndex < _analysisSteps.length - 1) {
@@ -71,7 +72,6 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
       }
     });
 
-    // Jalankan pemrosesan inferensi AI
     _processDetection();
   }
 
@@ -81,7 +81,6 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     });
 
     try {
-      // Panggil backend nyata via Multipart POST Request (bytes, Web-safe)
       final resultData = await AIService.sendDataToAI(
         faceImageBytes: widget.faceBytes,
         drawingImageBytes: widget.drawingBytes,
@@ -92,7 +91,6 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
 
       if (!mounted) return;
 
-      // Navigasi pushReplacement ke ResultScreen dengan data JSON nyata
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -112,7 +110,6 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     }
   }
 
-
   @override
   void dispose() {
     _stepTimer?.cancel();
@@ -122,85 +119,122 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: appBg,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Top Bar Status
-              _buildTopStatus(),
+              // Top Bar Status - Sleek Modern Pill
+              _buildTopStatus(isDark),
 
-              // Central Scanning Radar Visual
+              // Central Scanning Card Elegan
               Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildPulseScanningIndicator(),
-                      const SizedBox(height: 36),
-
-                      // Teks Utama Sesuai Prompt
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          'AI sedang menganalisis Sklera, Suara, dan Gait Anda...',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: primaryBlue,
-                            height: 1.3,
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+                            blurRadius: 36,
+                            offset: const Offset(0, 14),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Indikator Loading Elegan dengan CircularProgressIndicator & Pulse Glow
+                          _buildElegantLoadingIndicator(isDark),
+                          const SizedBox(height: 30),
 
-                      // Teks Sub-tahapan Dinamis
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: Container(
-                          key: ValueKey<int>(_currentStepIndex),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: borderBlack, width: 2),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: borderBlack,
-                                offset: Offset(2.5, 2.5),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            _analysisSteps[_currentStepIndex],
+                          // Teks Utama
+                          Text(
+                            'AI Sedang Menganalisis Sensor...',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: borderBlack,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : primaryBlue,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Mengintegrasikan respons sklera, vokal, ritme motorik, dan akselerometer gait.',
+                            textAlign: TextAlign.center,
+                            style: textTheme.bodySmall?.copyWith(
+                              fontSize: 12.5,
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
 
-                      // Sensor Active Nodes (Sklera, Suara, Gait)
-                      _buildSensorNodesRow(),
-                    ],
+                          // Teks Sub-tahapan Dinamis (Modern Pill Badge)
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              key: ValueKey<int>(_currentStepIndex),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: Text(
+                                      _analysisSteps[_currentStepIndex],
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark ? Colors.white : primaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Sensor Active Nodes (Sklera, Suara, Gait) - Modern Clean Pills
+                          _buildSensorNodesRow(isDark),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
 
               // Bottom Info Box
-              _buildBottomNotice(),
+              _buildBottomNotice(isDark, textTheme),
             ],
           ),
         ),
@@ -208,50 +242,64 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     );
   }
 
-  Widget _buildTopStatus() {
+  Widget _buildTopStatus(bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: const BoxDecoration(
-                color: accentYellow,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: borderBlack,
-                    offset: Offset(1.5, 1.5),
-                  ),
-                ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _isConnecting ? 'HTTP REQUEST AKTIF' : 'MENUNGGU RESPONS',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: primaryBlue,
-                letterSpacing: 1.0,
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _isConnecting ? accentAmber : accentGreen,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isConnecting ? accentAmber : accentGreen).withValues(alpha: 0.5),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                _isConnecting ? 'HTTP REQUEST AKTIF' : 'MENUNGGU RESPONS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : primaryBlue,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderBlack, width: 2),
+            color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+            borderRadius: BorderRadius.circular(999),
           ),
           child: const Text(
-            'Local AI :5000',
+            'Somatic.AI Core',
             style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
               color: primaryBlue,
             ),
           ),
@@ -260,92 +308,63 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     );
   }
 
-  Widget _buildPulseScanningIndicator() {
+  /// Indikator loading halus: CircularProgressIndicator Deep Blue dibalut dalam Stack animasi
+  Widget _buildElegantLoadingIndicator(bool isDark) {
     return AnimatedBuilder(
       animation: _animController,
       builder: (context, child) {
-        final scale = 1.0 + (_animController.value * 0.12);
-        final rotation = _animController.value * 2 * 3.14159;
+        final pulseScale = 1.0 + (_animController.value * 0.14);
 
         return Stack(
           alignment: Alignment.center,
           children: [
-            // Gelombang Luar
+            // Gelombang Pulse Luar Sangat Halus
             Transform.scale(
-              scale: scale,
+              scale: pulseScale,
               child: Container(
-                width: 170,
-                height: 170,
+                width: 130,
+                height: 130,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: primaryBlue.withValues(
                     alpha: 0.08 * (1.0 - _animController.value),
                   ),
-                  border: Border.all(
-                    color: primaryBlue.withValues(
-                      alpha: 0.3 * (1.0 - _animController.value),
-                    ),
-                    width: 2,
-                  ),
                 ),
               ),
             ),
 
-            // Lingkaran Border Putar
-            Transform.rotate(
-              angle: rotation,
-              child: Container(
-                width: 136,
-                height: 136,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: primaryBlue,
-                    width: 3,
-                    strokeAlign: BorderSide.strokeAlignOutside,
-                  ),
-                ),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: const BoxDecoration(
-                      color: accentYellow,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: borderBlack,
-                          offset: Offset(1, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Kotak Inti Neo-Brutalism (Offset Solid Shadow)
-            Container(
+            // Lingkaran Circular Progress Halus
+            SizedBox(
               width: 96,
               height: 96,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                strokeCap: StrokeCap.round,
+                backgroundColor: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
+                valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+              ),
+            ),
+
+            // Ikon Inti Melayang
+            Container(
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                color: primaryBlue,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: borderBlack, width: 2.5),
-                boxShadow: const [
+                color: isDark ? const Color(0xFF141414) : const Color(0xFFF7F8FC),
+                shape: BoxShape.circle,
+                boxShadow: [
                   BoxShadow(
-                    color: primaryDark,
-                    offset: Offset(4, 4),
-                    blurRadius: 0,
+                    color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: const Center(
                 child: Icon(
                   Icons.sensors_rounded,
-                  color: Colors.white,
-                  size: 46,
+                  color: primaryBlue,
+                  size: 34,
                 ),
               ),
             ),
@@ -355,7 +374,7 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     );
   }
 
-  Widget _buildSensorNodesRow() {
+  Widget _buildSensorNodesRow(bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -363,53 +382,64 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
           Icons.remove_red_eye_outlined,
           'Sklera',
           _currentStepIndex >= 1,
+          isDark,
         ),
         const SizedBox(width: 8),
         _buildSensorNodeChip(
           Icons.graphic_eq_rounded,
           'Suara',
           _currentStepIndex >= 2,
+          isDark,
         ),
         const SizedBox(width: 8),
         _buildSensorNodeChip(
           Icons.directions_walk_rounded,
           'Gait',
           _currentStepIndex >= 3,
+          isDark,
         ),
       ],
     );
   }
 
-  Widget _buildSensorNodeChip(IconData icon, String label, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+  Widget _buildSensorNodeChip(IconData icon, String label, bool isActive, bool isDark) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive ? primaryBlue : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderBlack, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: borderBlack,
-            offset: Offset(1.5, 1.5),
-            blurRadius: 0,
-          ),
-        ],
+        color: isActive
+            ? primaryBlue
+            : (isDark ? const Color(0xFF141414) : const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: primaryBlue.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            icon,
+            isActive ? Icons.check_circle_rounded : icon,
             size: 13,
-            color: isActive ? Colors.white : grayText,
+            color: isActive
+                ? Colors.white
+                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: isActive ? Colors.white : grayText,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isActive
+                  ? Colors.white
+                  : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
             ),
           ),
         ],
@@ -417,32 +447,38 @@ class _LoadingScanScreenState extends State<LoadingScanScreen>
     );
   }
 
-  Widget _buildBottomNotice() {
+  Widget _buildBottomNotice(bool isDark, TextTheme textTheme) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderBlack, width: 1.5),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
+          const SizedBox(
             width: 14,
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: primaryBlue,
+              valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
             ),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Text(
             'Mengirim data ke model AI lokal...',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: grayText,
+            style: textTheme.bodySmall?.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
           ),
         ],

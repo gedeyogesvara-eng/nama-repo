@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'auth_service.dart';
 import 'history_service.dart';
+import 'backend_service.dart';
 
 /// Service untuk menangani komunikasi HTTP nyata ke backend Go (Gin) yang
 /// meneruskan data ke server AI Python dan menyimpan hasilnya ke MySQL.
@@ -147,59 +148,25 @@ class AIService {
     }
   }
 
-  /// Mengirim hasil diagnosis skrining ke endpoint POST /api/history pada backend Go untuk disimpan ke MySQL
+  /// Mengirim hasil diagnosis skrining ke Supabase (tabel `screening_history`)
+  /// menggunakan implementasi `Supabase.instance.client.from('screening_history').insert(payload)`.
+  /// Tidak lagi melakukan HTTP POST ke localhost sehingga bebas dari error 'backend timeout'.
   static Future<bool> postDiagnosisToBackend(
     Map<String, dynamic> diagnosisData, {
     int? userId,
     http.Client? client,
   }) async {
     final effectiveUserId = userId ?? authService.currentUserId ?? 1;
-    final httpClient = client ?? http.Client();
     try {
-      final screeningData = diagnosisData['data_skrining'] is Map
-          ? Map<String, dynamic>.from(diagnosisData['data_skrining'] as Map)
-          : diagnosisData;
-
-      int asInt(dynamic v, int fallback) =>
-          v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
-
-      final payload = {
-        'user_id': effectiveUserId,
-        'id_skrining': (screeningData['id_skrining'] ?? diagnosisData['id_skrining'] ?? '').toString(),
-        'kode_skrining': (screeningData['id_skrining'] ?? diagnosisData['id_skrining'] ?? '').toString(),
-        'kategori_burnout': (screeningData['kategori_burnout'] ?? diagnosisData['tingkat_depresi'] ?? 'Kelelahan Terdeteksi').toString(),
-        'skor_akustik': asInt(screeningData['skor_akustik'], 50),
-        'skor_motorik': asInt(screeningData['skor_motorik'], 50),
-        'skor_sklera': asInt(screeningData['skor_sklera'], 50),
-        'visual_score': asInt(screeningData['visual_score'] ?? screeningData['skor_sklera'], 50),
-        'voice_score': asInt(screeningData['voice_score'] ?? screeningData['skor_akustik'], 50),
-        'sketch_score': asInt(screeningData['sketch_score'] ?? screeningData['skor_motorik'], 50),
-        'gait_score': asInt(screeningData['gait_score'] ?? screeningData['skor_motorik'], 50),
-        'eye_label': (screeningData['eye_label'] ?? 'Normal').toString(),
-        'audio_label': (screeningData['audio_label'] ?? 'Stabil').toString(),
-        'sketch_label': (screeningData['sketch_label'] ?? 'Relaks').toString(),
-        'gait_label': (screeningData['gait_label'] ?? 'Simetris').toString(),
-        'diagnosis_summary': (screeningData['diagnosis_summary'] ?? '').toString(),
-        'is_emergency': screeningData['is_emergency'] == true,
-        'ai_recipes': diagnosisData['ai_recipes'] ?? [],
-      };
-
-      final res = await httpClient.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/history'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 10));
-
-      debugPrint('📤 [AIService] POST /api/history respons: ${res.statusCode}');
-      return res.statusCode == 200 || res.statusCode == 201;
+      final success = await BackendService.insertScreeningHistory(
+        diagnosisData,
+        userId: effectiveUserId,
+        client: client,
+      );
+      return success;
     } catch (e) {
-      debugPrint('⚠️ [AIService] Gagal POST riwayat diagnosis ke backend: $e');
+      debugPrint('⚠️ [AIService] Gagal menyimpan riwayat diagnosis ke Supabase: $e');
       return false;
-    } finally {
-      if (client == null) httpClient.close();
     }
   }
 
