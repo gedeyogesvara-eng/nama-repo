@@ -5,8 +5,8 @@ import '../services/backend_service.dart';
 import 'relaxation_drawing_screen.dart';
 
 /// Halaman Hasil Deteksi AI
-/// Menampilkan ringkasan diagnosis, 4 indikator metrik sensor multimodal,
-/// checklist interaktif Resep Anti-Zombi, dan tombol relaksasi menggambar.
+/// Menampilkan ringkasan diagnosis, 3 indikator metrik sensor multimodal (Suara, Visual, Gait),
+/// checklist interaktif Goals Pemulihan, dan tombol relaksasi menggambar.
 ///
 /// Didesain dengan gaya 'Modern Clean':
 /// - Dominan Deep Blue (#314BB5) & Putih/Surface Elegan
@@ -155,12 +155,10 @@ class _ResultScreenState extends State<ResultScreen> {
 
     final int skorSuara = asInt(_screeningData['voice_score'] ?? _screeningData['skor_akustik'], 34);
     final int skorVisual = asInt(_screeningData['visual_score'] ?? _screeningData['skor_sklera'], 32);
-    final int skorSketsa = asInt(_screeningData['sketch_score'] ?? _screeningData['skor_motorik'], 40);
     final int skorGait = asInt(_screeningData['gait_score'] ?? _screeningData['skor_motorik'], 38);
 
     final String labelVisual = (_screeningData['eye_label'] ?? _screeningData['eye_diagnosis'] ?? 'Normal (Sehat)').toString();
     final String labelSuara = (_screeningData['audio_label'] ?? _screeningData['audio_diagnosis'] ?? 'Vokal Normal (Stabil)').toString();
-    final String labelSketsa = (_screeningData['sketch_label'] ?? 'Pola Coretan Rileks').toString();
     final String labelGait = (_screeningData['gait_label'] ?? 'Langkah Terkoordinasi').toString();
 
     final String diagSummary = (_screeningData['diagnosis_summary'] ?? '').toString();
@@ -185,17 +183,15 @@ class _ResultScreenState extends State<ResultScreen> {
                   _buildPrimaryHeaderCard(kategoriBurnout, diagSummary, isDark, textTheme),
                   const SizedBox(height: 24),
 
-                  // 2. Section 4 Metrik Sensor Multimodal
+                  // 2. Section 3 Metrik Sensor Multimodal (Suara, Visual, Gait)
                   _buildMetricsSection(
                     isDark: isDark,
                     textTheme: textTheme,
                     skorSuara: skorSuara,
                     skorVisual: skorVisual,
-                    skorSketsa: skorSketsa,
                     skorGait: skorGait,
                     labelSuara: labelSuara,
                     labelVisual: labelVisual,
-                    labelSketsa: labelSketsa,
                     labelGait: labelGait,
                   ),
                   const SizedBox(height: 28),
@@ -404,7 +400,7 @@ class _ResultScreenState extends State<ResultScreen> {
                   child: Text(
                     diagSummary.isNotEmpty
                         ? diagSummary
-                        : 'Hasil analisis multimodal 4 sensor Somatic.AI: integrasi respons mata, suara, ritme motorik sketsa, dan dinamika langkah gait.',
+                        : 'Hasil analisis multimodal 3 sensor Somatic.AI: integrasi respons mata (visual), suara (akustik vokal), dan dinamika langkah (gait motorik).',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.95),
                       fontSize: 12.5,
@@ -421,17 +417,15 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // --- SECTION METRIK (4 KARTU MULTIMODAL) ---
+  // --- SECTION METRIK (3 KARTU MULTIMODAL: SUARA, VISUAL, GAIT) ---
   Widget _buildMetricsSection({
     required bool isDark,
     required TextTheme textTheme,
     required int skorSuara,
     required int skorVisual,
-    required int skorSketsa,
     required int skorGait,
     required String labelSuara,
     required String labelVisual,
-    required String labelSketsa,
     required String labelGait,
   }) {
     Color getAccent(int score) => score >= 70 ? redDark : (score >= 45 ? amberDark : greenDark);
@@ -445,7 +439,7 @@ class _ResultScreenState extends State<ResultScreen> {
             const Icon(Icons.speed_rounded, size: 16, color: primaryBlue),
             const SizedBox(width: 6),
             Text(
-              'INDIKATOR 4 MODALITAS AI',
+              'INDIKATOR 3 MODALITAS AI',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
@@ -456,6 +450,7 @@ class _ResultScreenState extends State<ResultScreen> {
           ],
         ),
         const SizedBox(height: 14),
+        // Baris 1: 2 Kartu Berdampingan (Suara & Visual)
         Row(
           children: [
             Expanded(
@@ -470,7 +465,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 bgTint: getBg(skorSuara),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: _buildMetricCard(
                 isDark: isDark,
@@ -485,35 +480,18 @@ class _ResultScreenState extends State<ResultScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                isDark: isDark,
-                textTheme: textTheme,
-                title: 'Sketsa (Draw)',
-                score: '$skorSketsa%',
-                icon: Icons.draw_outlined,
-                statusText: labelSketsa,
-                accentColor: getAccent(skorSketsa),
-                bgTint: getBg(skorSketsa),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                isDark: isDark,
-                textTheme: textTheme,
-                title: 'Gait (Sensor)',
-                score: '$skorGait%',
-                icon: Icons.directions_walk_rounded,
-                statusText: labelGait,
-                accentColor: getAccent(skorGait),
-                bgTint: getBg(skorGait),
-              ),
-            ),
-          ],
+        const SizedBox(height: 14),
+        // Baris 2: Kartu Horizontal Penuh (Gait / Sensor Langkah)
+        _buildHorizontalMetricCard(
+          isDark: isDark,
+          textTheme: textTheme,
+          title: 'Gait (Sensor Gerak)',
+          subtitle: 'Akselerasi & Koordinasi Langkah Kaki',
+          score: '$skorGait%',
+          icon: Icons.directions_walk_rounded,
+          statusText: labelGait,
+          accentColor: getAccent(skorGait),
+          bgTint: getBg(skorGait),
         ),
       ],
     );
@@ -530,13 +508,13 @@ class _ResultScreenState extends State<ResultScreen> {
     required Color bgTint,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -545,18 +523,18 @@ class _ResultScreenState extends State<ResultScreen> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(9),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: bgTint,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: accentColor, size: 20),
+            child: Icon(icon, color: accentColor, size: 22),
           ),
           const SizedBox(height: 10),
           Text(
             title,
             style: textTheme.bodySmall?.copyWith(
-              fontSize: 11.5,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
@@ -565,14 +543,14 @@ class _ResultScreenState extends State<ResultScreen> {
           Text(
             score,
             style: textTheme.titleMedium?.copyWith(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
             decoration: BoxDecoration(
               color: bgTint,
               borderRadius: BorderRadius.circular(999),
@@ -580,7 +558,7 @@ class _ResultScreenState extends State<ResultScreen> {
             child: Text(
               statusText,
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: accentColor,
               ),
@@ -588,6 +566,111 @@ class _ResultScreenState extends State<ResultScreen> {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHorizontalMetricCard({
+    required bool isDark,
+    required TextTheme textTheme,
+    required String title,
+    required String subtitle,
+    required String score,
+    required IconData icon,
+    required String statusText,
+    required Color accentColor,
+    required Color bgTint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgTint,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: accentColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: textTheme.bodySmall?.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                score,
+                style: textTheme.titleMedium?.copyWith(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: bgTint,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Motorik',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -604,10 +687,10 @@ class _ResultScreenState extends State<ResultScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.checklist_rounded, size: 18, color: primaryBlue),
+                const Icon(Icons.flag_outlined, size: 18, color: primaryBlue),
                 const SizedBox(width: 6),
                 Text(
-                  'Resep Anti-Zombi',
+                  'Goals Pemulihan',
                   style: textTheme.titleMedium?.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,

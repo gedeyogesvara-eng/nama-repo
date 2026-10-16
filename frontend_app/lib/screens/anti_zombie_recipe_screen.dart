@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/backend_service.dart';
+import '../services/notification_service.dart';
 import '../theme/theme_controller.dart';
 
-/// Layar Resep Anti-Zombi (Modern Clean)
-/// Menampilkan daftar intervensi & resep pemulihan harian dari MySQL (via Go backend)
-/// dengan kartu melengkung 24-32, shadow transparan halus, Deep Blue (#314BB5),
-/// dan kompatibilitas penuh dengan Dark Mode.
+/// Layar Goals Pemulihan (Modern Clean)
+/// Menampilkan daftar intervensi & target goals pemulihan harian dari Supabase / backend
+/// dengan kartu berlekuk halus (BorderRadius.circular(32)), shadow transparan lembut,
+/// aksen Deep Blue (#314BB5), ikon target outline minimalis, dan kompatibilitas penuh Dark Mode.
 class AntiZombieRecipeScreen extends StatefulWidget {
   const AntiZombieRecipeScreen({super.key});
 
@@ -21,11 +23,33 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
   bool _isLoading = true;
   bool _isToggling = false;
   List<Map<String, dynamic>> _recipes = [];
+  Map<String, String> _activeReminders = {};
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadReminders();
+  }
+
+  Future<void> _loadReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith('goal_reminder_time_'));
+      final Map<String, String> reminders = {};
+      for (final k in keys) {
+        final goalId = k.replaceFirst('goal_reminder_time_', '');
+        final timeStr = prefs.getString(k);
+        if (timeStr != null) {
+          reminders[goalId] = timeStr;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _activeReminders = reminders;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadData() async {
@@ -44,6 +68,137 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _handleToggleGoalReminder(Map<String, dynamic> recipe) async {
+    final int goalId = recipe['id'] is num
+        ? (recipe['id'] as num).toInt()
+        : int.tryParse('${recipe['id']}') ?? 1;
+    final String key = '$goalId';
+    final String deskripsi = recipe['deskripsi_tugas']?.toString() ?? 'Rutinitas Goal';
+    final isReminderActive = _activeReminders.containsKey(key);
+
+    if (isReminderActive) {
+      final bool? shouldTurnOff = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final isDark = themeController.isDarkMode;
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            title: const Row(
+              children: [
+                Icon(Icons.notifications_active_rounded, color: primaryBlue, size: 22),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Pengingat Goal Aktif',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              "Pengingat untuk '$deskripsi' saat ini aktif pukul ${_activeReminders[key]}.\n\nApakah Anda ingin mematikan pengingat ini atau mengubah jamnya?",
+              style: const TextStyle(fontSize: 13, height: 1.45),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Ubah Jam', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                child: const Text('Matikan Pengingat', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldTurnOff == null || !mounted) return;
+
+      if (shouldTurnOff) {
+        await notificationService.cancelGoalReminder(goalId);
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('goal_reminder_time_$key');
+        } catch (_) {}
+
+        setState(() {
+          _activeReminders.remove(key);
+        });
+
+        if (!mounted) return;
+        final isDark = themeController.isDarkMode;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Pengingat untuk goal '$deskripsi' dinonaktifkan.",
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            backgroundColor: isDark ? const Color(0xFF262626) : const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          ),
+        );
+        return;
+      }
+    }
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      helpText: 'ATUR JAM PENGINGAT GOAL',
+      confirmText: 'AKTIFKAN',
+      cancelText: 'BATAL',
+    );
+
+    if (pickedTime == null || !mounted) return;
+
+    await notificationService.scheduleGoalReminder(
+      goalId: goalId,
+      goalTitle: deskripsi,
+      time: pickedTime,
+    );
+
+    final timeStr =
+        "${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')} WIB";
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('goal_reminder_time_$key', timeStr);
+    } catch (_) {}
+
+    setState(() {
+      _activeReminders[key] = timeStr;
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Waktunya menyelesaikan goals pemulihanmu hari ini! Pengingat aktif jam $timeStr.",
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: primaryBlue,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _toggleRecipe(Map<String, dynamic> recipe) async {
@@ -68,7 +223,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
         await _loadData();
       }
     } catch (e) {
-      debugPrint('Error toggling recipe: $e');
+      debugPrint('Error toggling goal status: $e');
       if (mounted) {
         setState(() {
           recipe['is_completed'] = currentStatus;
@@ -100,23 +255,23 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
             return AlertDialog(
               backgroundColor: dialogBg,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(32),
               ),
               elevation: 12,
               title: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.medication_liquid_rounded, color: primaryBlue, size: 20),
+                    child: const Icon(Icons.flag_outlined, color: primaryBlue, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Tambah Resep Mandiri',
+                      'Tambah Target Goal',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
@@ -132,42 +287,42 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Tulis aktivitas pemulihan kustom yang ingin Anda selesaikan hari ini:',
-                      style: TextStyle(fontSize: 12, color: subCol, fontWeight: FontWeight.w500),
+                      'Tulis aktivitas atau target pemulihan yang ingin Anda capai hari ini:',
+                      style: TextStyle(fontSize: 12.5, color: subCol, fontWeight: FontWeight.w500, height: 1.4),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: textController,
                       maxLines: 2,
-                      style: TextStyle(color: textCol, fontSize: 13),
+                      style: TextStyle(color: textCol, fontSize: 13.5),
                       decoration: InputDecoration(
                         hintText: 'Misal: Istirahat mata 15 menit, jalan santai 1000 langkah...',
-                        hintStyle: TextStyle(color: subCol.withValues(alpha: 0.7), fontSize: 12),
+                        hintStyle: TextStyle(color: subCol.withValues(alpha: 0.7), fontSize: 12.5),
                         filled: true,
                         fillColor: isDark ? const Color(0xFF141414) : const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide(
                             color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFE2E8F0),
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide(
                             color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFE2E8F0),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                           borderSide: const BorderSide(color: primaryBlue, width: 2),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Kategori Pemulihan:',
+                      'Kategori Target Goal:',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                         color: textCol,
                       ),
@@ -182,7 +337,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                           label: Text(
                             cat,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w700,
                               color: isSel ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
                             ),
@@ -236,7 +391,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Resep mandiri berhasil ditambahkan ke daftar tugas harian!',
+                                  'Target goal baru berhasil ditambahkan ke daftar pemulihan!',
                                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                 ),
                                 backgroundColor: greenDone,
@@ -251,8 +406,9 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                     backgroundColor: primaryBlue,
                     foregroundColor: Colors.white,
                     elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(32),
                     ),
                   ),
                   child: isSubmitting
@@ -261,7 +417,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Simpan Resep', style: TextStyle(fontWeight: FontWeight.w700)),
+                      : const Text('Simpan Goal', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ],
             );
@@ -274,7 +430,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = theme.brightness == Brightness.dark || themeController.isDarkMode;
     final scaffoldBg = theme.scaffoldBackgroundColor;
     final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
@@ -315,7 +471,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
           ),
         ),
         title: Text(
-          'Resep Anti-Zombi',
+          'Goals Pemulihanmu',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -339,16 +495,16 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 1. BANNER STATUS PEMULIHAN (MODERN CLEAN CARD)
+                          // 1. BANNER TARGET GOALS PEMULIHAN (MODERN CLEAN CARD BORDER-RADIUS 32)
                           Container(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(22),
                             decoration: BoxDecoration(
                               color: cardBg,
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(32),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-                                  blurRadius: 20,
+                                  color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.07),
+                                  blurRadius: 22,
                                   offset: const Offset(0, 6),
                                 ),
                               ],
@@ -359,30 +515,31 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                 Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.1),
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
-                                      child: const Icon(Icons.healing_rounded, color: primaryBlue, size: 22),
+                                      child: const Icon(Icons.track_changes_outlined, color: primaryBlue, size: 24),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 14),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Target Pemulihan Harian',
+                                            'Target Goals Harian',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w800,
-                                              fontSize: 15,
+                                              fontSize: 15.5,
                                               color: textCol,
                                             ),
                                           ),
+                                          const SizedBox(height: 2),
                                           Text(
-                                            'Tiap resep selesai memberi +15 skor pemulihan',
+                                            'Tiap goal tercapai memberi +15 skor pemulihan',
                                             style: TextStyle(
-                                              fontSize: 11.5,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w500,
                                               color: subCol,
                                             ),
@@ -391,23 +548,23 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                       decoration: BoxDecoration(
                                         color: greenDone.withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(999),
                                       ),
                                       child: Text(
-                                        '$completedCount / $totalCount Selesai',
+                                        '$completedCount / $totalCount Tercapai',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w800,
-                                          fontSize: 11.5,
+                                          fontSize: 12,
                                           color: greenDone,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 18),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(999),
                                   child: LinearProgressIndicator(
@@ -421,16 +578,16 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                             ),
                           ),
 
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 24),
 
-                          // 2. HEADER DAFTAR RESEP & TOMBOL TAMBAH
+                          // 2. HEADER DAFTAR GOALS & TOMBOL TAMBAH
                           Row(
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Daftar Resep Aktif',
+                                  'Daftar Target Goals',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 16.5,
                                     fontWeight: FontWeight.w800,
                                     color: textCol,
                                   ),
@@ -439,7 +596,7 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                               ElevatedButton.icon(
                                 onPressed: _showAddCustomRecipeDialog,
                                 icon: const Icon(Icons.add_rounded, size: 16),
-                                label: const Text('Resep Mandiri', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                label: const Text('Goal Mandiri', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primaryBlue,
                                   foregroundColor: Colors.white,
@@ -455,13 +612,13 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
 
                           const SizedBox(height: 14),
 
-                          // 3. DAFTAR KARTU RESEP (RESPONSIF, MODERN CLEAN)
+                          // 3. DAFTAR KARTU TARGET GOALS (MODERN CLEAN BORDER-RADIUS 32)
                           if (_recipes.isEmpty)
                             Container(
-                              padding: const EdgeInsets.all(28),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                               decoration: BoxDecoration(
                                 color: cardBg,
-                                borderRadius: BorderRadius.circular(28),
+                                borderRadius: BorderRadius.circular(32),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
@@ -472,21 +629,28 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                               ),
                               child: Column(
                                 children: [
-                                  const Icon(Icons.task_alt_rounded, size: 48, color: primaryBlue),
-                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.track_changes_outlined, size: 44, color: primaryBlue),
+                                  ),
+                                  const SizedBox(height: 16),
                                   Text(
-                                    'Belum Ada Resep Aktif',
+                                    'Belum Ada Target Goals',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 15,
+                                      fontSize: 16,
                                       color: textCol,
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 8),
                                   Text(
-                                    'Jalankan skrining AI di Beranda atau tekan tombol "+ Resep Mandiri" di atas untuk menambahkan resep pemulihan pertama Anda.',
+                                    'Jalankan skrining AI di Beranda atau tekan tombol "+ Goal Mandiri" di atas untuk menambahkan target pemulihan pertama Anda.',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 12, color: subCol, height: 1.4),
+                                    style: TextStyle(fontSize: 12.5, color: subCol, height: 1.45),
                                   ),
                                 ],
                               ),
@@ -502,21 +666,26 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                 final isDone = recipe['is_completed'] == true;
                                 final String jenis = recipe['jenis_intervensi']?.toString() ?? 'Mandiri';
                                 final String deskripsi = recipe['deskripsi_tugas']?.toString() ?? '-';
+                                final int goalId = recipe['id'] is num
+                                    ? (recipe['id'] as num).toInt()
+                                    : int.tryParse('${recipe['id']}') ?? (index + 1);
+                                final String goalKey = '$goalId';
+                                final bool isReminderActive = _activeReminders.containsKey(goalKey);
 
                                 return InkWell(
                                   onTap: () => _toggleRecipe(recipe),
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(32),
                                   child: Container(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(18),
                                     decoration: BoxDecoration(
                                       color: isDone
                                           ? (isDark ? const Color(0xFF161616) : const Color(0xFFF8FAFC))
                                           : cardBg,
-                                      borderRadius: BorderRadius.circular(24),
+                                      borderRadius: BorderRadius.circular(32),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-                                          blurRadius: 14,
+                                          blurRadius: 16,
                                           offset: const Offset(0, 4),
                                         ),
                                       ],
@@ -524,23 +693,23 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                     child: Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        // Modern Checkbox
+                                        // Modern Goal Checkbox
                                         Container(
-                                          width: 26,
-                                          height: 26,
+                                          width: 28,
+                                          height: 28,
                                           margin: const EdgeInsets.only(top: 2),
                                           decoration: BoxDecoration(
                                             color: isDone ? greenDone : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(10),
                                             border: Border.all(
                                               color: isDone
                                                   ? greenDone
                                                   : (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
-                                              width: 2,
+                                              width: 1.8,
                                             ),
                                           ),
                                           child: isDone
-                                              ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                                              ? const Icon(Icons.check_rounded, size: 20, color: Colors.white)
                                               : null,
                                         ),
                                         const SizedBox(width: 14),
@@ -571,26 +740,76 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                                     ),
                                                   ),
                                                   if (isDone)
-                                                    const Text(
-                                                      '+15 Poin Pemulihan',
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: greenDone,
-                                                      ),
+                                                    const Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(Icons.stars_rounded, size: 14, color: greenDone),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                          '+15 Poin Pemulihan',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: greenDone,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 6),
+                                              const SizedBox(height: 8),
                                               Text(
                                                 deskripsi,
                                                 softWrap: true,
                                                 style: TextStyle(
-                                                  fontSize: 13.5,
+                                                  fontSize: 14,
                                                   fontWeight: FontWeight.w600,
                                                   color: isDone ? subCol : textCol,
                                                   decoration: isDone ? TextDecoration.lineThrough : null,
-                                                  height: 1.35,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              InkWell(
+                                                onTap: () => _handleToggleGoalReminder(recipe),
+                                                borderRadius: BorderRadius.circular(20),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                  decoration: BoxDecoration(
+                                                    color: isReminderActive
+                                                        ? primaryBlue.withValues(alpha: isDark ? 0.3 : 0.12)
+                                                        : (isDark ? const Color(0xFF262626) : const Color(0xFFF1F5F9)),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(
+                                                      color: isReminderActive
+                                                          ? primaryBlue.withValues(alpha: 0.5)
+                                                          : (isDark ? const Color(0xFF383838) : const Color(0xFFE2E8F0)),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        isReminderActive
+                                                            ? Icons.notifications_active_rounded
+                                                            : Icons.notifications_none_rounded,
+                                                        size: 14,
+                                                        color: isReminderActive ? primaryBlue : subCol,
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Text(
+                                                        isReminderActive
+                                                            ? "Pengingat: ${_activeReminders[goalKey]}"
+                                                            : "Set Pengingat",
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: isReminderActive ? primaryBlue : subCol,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -603,18 +822,28 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                               },
                             ),
 
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 26),
 
-                          // Tombol Tambah Resep Mandiri Bawah (Modern Clean BorderRadius 32)
-                          SizedBox(
-                            height: 54,
+                          // Tombol Tambah Goal Mandiri Bawah (Modern Clean Deep Blue, BorderRadius 32, Soft Shadow)
+                          Container(
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(32),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryBlue.withValues(alpha: isDark ? 0.4 : 0.28),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
                             child: ElevatedButton.icon(
-                              icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                              icon: const Icon(Icons.add_task_rounded, size: 20),
                               label: const Text(
-                                "+ Tambah Resep Mandiri Baru",
+                                "+ Tambah Target Goal Baru",
                                 style: TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: 0.2,
                                 ),
                               ),
@@ -625,12 +854,11 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(32),
                                 ),
-                                shadowColor: primaryBlue.withValues(alpha: 0.35),
                               ),
                               onPressed: _showAddCustomRecipeDialog,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 24),
                         ],
                       ),
                     ),

@@ -2,18 +2,25 @@ import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 
+/// Layar Awal (Onboarding / Welcome)
+/// Didesain dengan gaya 'Modern Clean':
+/// - Latar belakang bersih (krem lembut / putih adaptif)
+/// - Logo estetis dengan proporsi elegan & soft shadow
+/// - Tombol utama Deep Blue (#314BB5) dengan sudut membulat circular 32 & bayangan halus
+/// - Teks ringkas, menenangkan, dan fokus
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
-  static const Color scaffoldBg = Color(0xFFF2F1EB);
   static const Color primaryBlue = Color(0xFF314BB5);
-  static const Color accentYellow = Color(0xFFFFC436);
-  static const Color darkBorder = Color(0xFF111827);
+  static const Color lightBg = Color(0xFFF2F1EB);
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: scaffoldBg,
+      backgroundColor: isDark ? const Color(0xFF121212) : lightBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -26,131 +33,30 @@ class WelcomeScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Status / Version Tag Pill
+                      // Tag Pill Status
                       Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                           decoration: BoxDecoration(
-                            color: accentYellow,
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: darkBorder, width: 2),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: darkBorder,
-                                offset: Offset(3, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
+                            color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.08),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.verified_user_rounded,
-                                size: 16,
-                                color: darkBorder,
+                                Icons.auto_awesome_rounded,
+                                size: 14,
+                                color: primaryBlue,
                               ),
                               SizedBox(width: 6),
                               Text(
                                 "AI HEALTH MONITORING",
                                 style: TextStyle(
-                                  color: darkBorder,
+                                  color: primaryBlue,
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Logo / Icon Besar dengan Offset Canvas & Neo-Brutalist Card
-                      Center(
-                        child: SizedBox(
-                          width: 170,
-                          height: 170,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              // Solid offset shadow backing layer
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                right: -8,
-                                bottom: -8,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: darkBorder,
-                                    borderRadius: BorderRadius.circular(36),
-                                  ),
-                                ),
-                              ),
-                              // Front main card
-                              Container(
-                                width: double.infinity,
-                                height: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(36),
-                                  border: Border.all(
-                                    color: darkBorder,
-                                    width: 3.0,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 100,
-                                    height: 100,
-                                    decoration: BoxDecoration(
-                                      color: primaryBlue,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: darkBorder,
-                                        width: 2.5,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: accentYellow,
-                                          offset: Offset(4, 4),
-                                          blurRadius: 0,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.shield_rounded,
-                                        size: 56,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Floating decorative micro-badge
-                              Positioned(
-                                top: -6,
-                                right: -6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: accentYellow,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: darkBorder, width: 2),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: darkBorder,
-                                        offset: Offset(2, 2),
-                                        blurRadius: 0,
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.favorite_rounded,
-                                    size: 18,
-                                    color: Color(0xFFEF4444),
-                                  ),
                                 ),
                               ),
                             ],
@@ -159,91 +65,219 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 36),
 
+                      // Logo / Ilustrasi Estetis di Bagian Atas
+                      Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 140,
+                              height: 140,
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.12),
+                                    blurRadius: 30,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 88,
+                                  height: 88,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Color(0xFF314BB5), Color(0xFF253B99)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.shield_rounded,
+                                      size: 44,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFBBF24),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFBBF24).withValues(alpha: 0.4),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.favorite_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
                       // Teks Judul RESTGUARD
-                      const Text(
+                      Text(
                         "RESTGUARD",
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 32,
+                          fontSize: 28,
                           fontWeight: FontWeight.w900,
-                          color: darkBorder,
-                          letterSpacing: 1.5,
-                          height: 1.1,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          letterSpacing: 1.2,
+                          height: 1.15,
                         ),
                       ),
                       const SizedBox(height: 10),
 
-                      // Deskripsi Singkat yang Ramah
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                      // Deskripsi Singkat & Menenangkan
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Text(
-                          "Teman setia menjaga pola istirahat, mendeteksi kelelahan mental, dan merawat kesehatan harian Anda dengan presisi AI multimodal.",
+                          "Deteksi kelelahan mental, pantau ritme pemulihan tubuh, dan rawat ketenangan Anda dengan presisi AI multimodal.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
                             height: 1.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF4B5563),
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 44),
 
-                      // Tombol Besar "Masuk" (Login)
-                      _buildNeoButton(
-                        context: context,
-                        text: "Masuk",
-                        backgroundColor: primaryBlue,
-                        textColor: Colors.white,
-                        icon: Icons.login_rounded,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
+                      // Tombol Utama "Masuk" (Deep Blue, Circular 32, Soft Blurred Shadow)
+                      Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryBlue.withValues(alpha: isDark ? 0.4 : 0.28),
+                              blurRadius: 22,
+                              offset: const Offset(0, 8),
                             ),
-                          );
-                        },
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.login_rounded, size: 20),
+                          label: const Text(
+                            "Masuk",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(32),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Tombol Besar "Daftar Akun Baru" (Register)
-                      _buildNeoButton(
-                        context: context,
-                        text: "Daftar Akun Baru",
-                        backgroundColor: Colors.white,
-                        textColor: darkBorder,
-                        icon: Icons.person_add_alt_1_rounded,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterScreen(),
+                      // Tombol Sekunder "Daftar Akun Baru" (Circular 32, Modern Border Halus)
+                      Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
                             ),
-                          );
-                        },
+                          ],
+                        ),
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const RegisterScreen(),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            Icons.person_add_alt_1_rounded,
+                            size: 20,
+                            color: isDark ? Colors.white : primaryBlue,
+                          ),
+                          label: Text(
+                            "Daftar Akun Baru",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : primaryBlue,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                            side: BorderSide(
+                              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                              width: 1.5,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(32),
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
-                      // Footer Subtext
-                      const Row(
+                      // Footer Privasi Minimalis
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.lock_outline_rounded,
                             size: 14,
-                            color: Color(0xFF9CA3AF),
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              "Privasi & Data Biometrik Anda 100% Terenkripsi",
+                              "Data Biometrik Terenkripsi & Terlindungi",
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF9CA3AF),
+                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                               ),
                             ),
                           ),
@@ -255,64 +289,6 @@ class WelcomeScreen extends StatelessWidget {
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildNeoButton({
-    required BuildContext context,
-    required String text,
-    required Color backgroundColor,
-    required Color textColor,
-    required VoidCallback onPressed,
-    IconData? icon,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: darkBorder,
-            offset: Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      child: Material(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: darkBorder,
-                width: 2.2,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, color: textColor, size: 20),
-                  const SizedBox(width: 10),
-                ],
-                Text(
-                  text,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

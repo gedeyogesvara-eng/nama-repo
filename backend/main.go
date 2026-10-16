@@ -141,13 +141,16 @@ func main() {
 	r.POST("/api/login/google", googleAuthHandler)
 	r.POST("/api/login/google-demo", googleDemoLoginHandler)
 	r.POST("/api/forgot-password", forgotPasswordHandler)
+	r.GET("/api/users", getUsersHandler)
+	r.POST("/api/users", createOrCheckUserHandler)
 	r.GET("/api/users/:id/profile", profileHandler)
 	r.PATCH("/api/users/:id/profile", updateProfileHandler)
 
-	// Skrining
+	// Skrining & Riwayat
 	r.POST("/api/detect", detectHandler)       // Endpoint utama yang ditembak ai_service.dart
 	r.POST("/api/v1/screening", detectHandler) // Alias cadangan
-	r.GET("/api/history", historyHandler)      // Riwayat skrining milik user_id dari MySQL
+	r.GET("/api/history", historyHandler)      // Riwayat skrining milik user_id dari MySQL (Select)
+	r.POST("/api/history", createHistoryHandler) // Simpan riwayat skrining ke MySQL (Insert)
 	r.PATCH("/api/recipes/:id/complete", completeTask)
 	r.POST("/api/recipes", createCustomRecipeHandler)
 	r.POST("/api/recipes/custom", createCustomRecipeHandler)
@@ -169,9 +172,9 @@ func connectAndMigrate() error {
 	user := envOr("DB_USER", "root")
 	pass := os.Getenv("DB_PASS")
 
-	portsToTry := []string{"3307", "3306"}
+	portsToTry := []string{"3306", "3307"}
 	if envPort := os.Getenv("DB_PORT"); envPort != "" {
-		portsToTry = []string{envPort}
+		portsToTry = []string{envPort, "3306", "3307"}
 	}
 
 	var admin *sql.DB
@@ -218,12 +221,17 @@ func connectAndMigrate() error {
 		return fmt.Errorf("ping %s: %w", dbName, err)
 	}
 
-	// c) Migrasi kolom untuk tabel users versi lama (tanpa email/password_hash)
+	// c) Migrasi kolom untuk tabel users versi lama (tanpa email/password_hash/uid)
 	if !columnExists("users", "email") {
 		if _, err := db.Exec(`ALTER TABLE users ADD COLUMN email VARCHAR(190) NULL UNIQUE AFTER full_name`); err != nil {
 			return fmt.Errorf("menambah kolom users.email: %w", err)
 		}
 		log.Println("🛠️  Migrasi: kolom users.email ditambahkan")
+	}
+	if !columnExists("users", "uid") {
+		if _, err := db.Exec(`ALTER TABLE users ADD COLUMN uid VARCHAR(190) NULL AFTER email`); err == nil {
+			log.Println("🛠️  Migrasi: kolom users.uid ditambahkan")
+		}
 	}
 	if !columnExists("users", "password_hash") {
 		if _, err := db.Exec(`ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email`); err != nil {
@@ -297,6 +305,7 @@ type userRecord struct {
 	ID            int
 	FullName      string
 	Email         sql.NullString
+	UID           sql.NullString
 	PasswordHash  sql.NullString
 	RecoveryScore int
 	ZombieStage   string
@@ -305,8 +314,11 @@ type userRecord struct {
 func (u userRecord) payload() gin.H {
 	return gin.H{
 		"user_id":        u.ID,
+		"id":             u.ID,
 		"full_name":      u.FullName,
+		"name":           u.FullName,
 		"email":          u.Email.String,
+		"uid":            u.UID.String,
 		"recovery_score": u.RecoveryScore,
 		"zombie_stage":   u.ZombieStage,
 	}
@@ -318,17 +330,42 @@ func authError(c *gin.Context, status int, message string) {
 
 func findUserByEmail(email string) (userRecord, error) {
 	var u userRecord
-	err := db.QueryRow(`SELECT id, full_name, email, password_hash, recovery_score, zombie_stage
-		FROM users WHERE email = ?`, email).
-		Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	var err error
+	if columnExists("users", "uid") {
+		err = db.QueryRow(`SELECT id, full_name, email, COALESCE(uid, ''), password_hash, recovery_score, zombie_stage
+			FROM users WHERE email = ?`, email).
+			Scan(&u.ID, &u.FullName, &u.Email, &u.UID, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	} else {
+		err = db.QueryRow(`SELECT id, full_name, email, password_hash, recovery_score, zombie_stage
+			FROM users WHERE email = ?`, email).
+			Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	}
+	return u, err
+}
+
+func findUserByUID(uid string) (userRecord, error) {
+	var u userRecord
+	if strings.TrimSpace(uid) == "" || !columnExists("users", "uid") {
+		return u, sql.ErrNoRows
+	}
+	err := db.QueryRow(`SELECT id, full_name, email, COALESCE(uid, ''), password_hash, recovery_score, zombie_stage
+		FROM users WHERE uid = ?`, uid).
+		Scan(&u.ID, &u.FullName, &u.Email, &u.UID, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
 	return u, err
 }
 
 func findUserByID(id int) (userRecord, error) {
 	var u userRecord
-	err := db.QueryRow(`SELECT id, full_name, email, password_hash, recovery_score, zombie_stage
-		FROM users WHERE id = ?`, id).
-		Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	var err error
+	if columnExists("users", "uid") {
+		err = db.QueryRow(`SELECT id, full_name, email, COALESCE(uid, ''), password_hash, recovery_score, zombie_stage
+			FROM users WHERE id = ?`, id).
+			Scan(&u.ID, &u.FullName, &u.Email, &u.UID, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	} else {
+		err = db.QueryRow(`SELECT id, full_name, email, password_hash, recovery_score, zombie_stage
+			FROM users WHERE id = ?`, id).
+			Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.RecoveryScore, &u.ZombieStage)
+	}
 	return u, err
 }
 
@@ -464,11 +501,13 @@ func googleDemoLoginHandler(c *gin.Context) {
 	})
 }
 
-// googleAuthHandler memproses autentikasi Google nyata: mencari akun berdasarkan email atau membuat akun baru otomatis di MySQL
+// googleAuthHandler memproses autentikasi Google nyata: mencari akun berdasarkan UID/email atau membuat akun baru otomatis di MySQL
 func googleAuthHandler(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email"`
 		FullName string `json:"full_name"`
+		Name     string `json:"name"`
+		UID      string `json:"uid"`
 		GoogleID string `json:"google_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -476,10 +515,15 @@ func googleAuthHandler(c *gin.Context) {
 		return
 	}
 
+	uid := strings.TrimSpace(req.UID)
+	if uid == "" {
+		uid = strings.TrimSpace(req.GoogleID)
+	}
+
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" || !emailRegex.MatchString(email) {
-		if req.GoogleID != "" {
-			email = fmt.Sprintf("google_%s@gmail.com", req.GoogleID)
+		if uid != "" {
+			email = fmt.Sprintf("google_%s@gmail.com", uid)
 		} else {
 			email = googleDemoEmail
 		}
@@ -487,14 +531,32 @@ func googleAuthHandler(c *gin.Context) {
 
 	fullName := strings.TrimSpace(req.FullName)
 	if fullName == "" {
+		fullName = strings.TrimSpace(req.Name)
+	}
+	if fullName == "" {
 		fullName = strings.Split(email, "@")[0]
 	}
 
-	user, err := findUserByEmail(email)
-	if errors.Is(err, sql.ErrNoRows) {
+	var user userRecord
+	var err error
+	if uid != "" {
+		user, err = findUserByUID(uid)
+	}
+	if (err != nil || uid == "") && email != "" {
+		user, err = findUserByEmail(email)
+	}
+
+	if errors.Is(err, sql.ErrNoRows) || (err != nil && user.ID == 0) {
 		// Buat pengguna baru di MySQL
-		res, ierr := db.Exec(`INSERT INTO users (full_name, email, recovery_score, zombie_stage) VALUES (?, ?, 50, 'HEALTHY_HUMAN')`,
-			fullName, email)
+		var res sql.Result
+		var ierr error
+		if columnExists("users", "uid") && uid != "" {
+			res, ierr = db.Exec(`INSERT INTO users (full_name, email, uid, recovery_score, zombie_stage) VALUES (?, ?, ?, 50, 'HEALTHY_HUMAN')`,
+				fullName, email, uid)
+		} else {
+			res, ierr = db.Exec(`INSERT INTO users (full_name, email, recovery_score, zombie_stage) VALUES (?, ?, 50, 'HEALTHY_HUMAN')`,
+				fullName, email)
+		}
 		if ierr != nil {
 			authError(c, http.StatusInternalServerError, "Gagal mendaftarkan akun Google baru di database: "+ierr.Error())
 			return
@@ -505,11 +567,15 @@ func googleAuthHandler(c *gin.Context) {
 			authError(c, http.StatusInternalServerError, "Gagal membaca data akun Google baru.")
 			return
 		}
-		log.Printf("👤 Akun Google baru otomatis terdaftar di MySQL: user_id=%d email=%s", user.ID, email)
+		log.Printf("👤 Akun Google baru otomatis terdaftar di MySQL: user_id=%d email=%s uid=%s", user.ID, email, uid)
 	} else if err != nil {
 		authError(c, http.StatusInternalServerError, "Gagal memeriksa akun Google di database.")
 		return
 	} else {
+		if uid != "" && (!user.UID.Valid || user.UID.String == "") && columnExists("users", "uid") {
+			_, _ = db.Exec(`UPDATE users SET uid = ? WHERE id = ?`, uid, user.ID)
+			user.UID = sql.NullString{String: uid, Valid: true}
+		}
 		log.Printf("👤 Login Google sukses untuk akun terdaftar: user_id=%d email=%s", user.ID, email)
 	}
 
@@ -517,6 +583,7 @@ func googleAuthHandler(c *gin.Context) {
 		"status":    "success",
 		"message":   "Autentikasi Google berhasil.",
 		"user_id":   user.ID,
+		"id":        user.ID,
 		"full_name": user.FullName,
 		"user":      user.payload(),
 	})
@@ -702,6 +769,156 @@ func updateProfileHandler(c *gin.Context) {
 		"status":  "success",
 		"message": "Profil berhasil diperbarui.",
 		"user":    user.payload(),
+	})
+}
+
+// getUsersHandler menangani GET /api/users (Select pengguna dari MySQL somatic_db)
+func getUsersHandler(c *gin.Context) {
+	email := strings.ToLower(strings.TrimSpace(c.Query("email")))
+	uid := strings.TrimSpace(c.Query("uid"))
+
+	if email != "" {
+		user, err := findUserByEmail(email)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Pengguna tidak ditemukan."})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "success", "data": user.payload(), "user": user.payload()})
+		return
+	}
+
+	if uid != "" {
+		user, err := findUserByUID(uid)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Pengguna tidak ditemukan."})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "success", "data": user.payload(), "user": user.payload()})
+		return
+	}
+
+	rows, err := db.Query(`SELECT id, full_name, email, COALESCE(uid, ''), recovery_score, zombie_stage FROM users ORDER BY id ASC LIMIT 50`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	list := make([]gin.H, 0)
+	for rows.Next() {
+		var id, recoveryScore int
+		var fullName, zombieStage, uidStr string
+		var emailStr sql.NullString
+		if err := rows.Scan(&id, &fullName, &emailStr, &uidStr, &recoveryScore, &zombieStage); err == nil {
+			list = append(list, gin.H{
+				"id":             id,
+				"user_id":        id,
+				"full_name":      fullName,
+				"name":           fullName,
+				"email":          emailStr.String,
+				"uid":            uidStr,
+				"recovery_score": recoveryScore,
+				"zombie_stage":   zombieStage,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": list})
+}
+
+// createOrCheckUserHandler menangani POST /api/users (Insert atau cek pengguna di MySQL somatic_db)
+func createOrCheckUserHandler(c *gin.Context) {
+	var req struct {
+		UID      string `json:"uid"`
+		GoogleID string `json:"google_id"`
+		Email    string `json:"email"`
+		FullName string `json:"full_name"`
+		Name     string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Payload JSON tidak valid: " + err.Error()})
+		return
+	}
+
+	uid := strings.TrimSpace(req.UID)
+	if uid == "" {
+		uid = strings.TrimSpace(req.GoogleID)
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	name := strings.TrimSpace(req.FullName)
+	if name == "" {
+		name = strings.TrimSpace(req.Name)
+	}
+	if name == "" && email != "" {
+		name = strings.Split(email, "@")[0]
+	}
+	if name == "" {
+		name = "Pengguna"
+	}
+
+	var user userRecord
+	var err error
+
+	// Cari berdasarkan UID terlebih dahulu jika ada
+	if uid != "" {
+		user, err = findUserByUID(uid)
+	}
+	// Jika tidak ketemu berdasarkan UID, cari berdasarkan email
+	if (err != nil || uid == "") && email != "" {
+		user, err = findUserByEmail(email)
+	}
+
+	if err == nil && user.ID > 0 {
+		// User sudah ada di database, update UID jika belum tersimpan
+		if uid != "" && (!user.UID.Valid || user.UID.String == "") && columnExists("users", "uid") {
+			_, _ = db.Exec(`UPDATE users SET uid = ? WHERE id = ?`, uid, user.ID)
+			user.UID = sql.NullString{String: uid, Valid: true}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "success",
+			"message":   "Pengguna ditemukan di MySQL somatic_db.",
+			"user_id":   user.ID,
+			"id":        user.ID,
+			"full_name": user.FullName,
+			"user":      user.payload(),
+		})
+		return
+	}
+
+	// Insert pengguna baru ke tabel users
+	var res sql.Result
+	var ierr error
+	if columnExists("users", "uid") && uid != "" {
+		res, ierr = db.Exec(`INSERT INTO users (full_name, email, uid, recovery_score, zombie_stage) VALUES (?, ?, ?, 50, 'HEALTHY_HUMAN')`,
+			name, email, uid)
+	} else if email != "" {
+		res, ierr = db.Exec(`INSERT INTO users (full_name, email, recovery_score, zombie_stage) VALUES (?, ?, 50, 'HEALTHY_HUMAN')`,
+			name, email)
+	} else {
+		res, ierr = db.Exec(`INSERT INTO users (full_name, recovery_score, zombie_stage) VALUES (?, 50, 'HEALTHY_HUMAN')`,
+			name)
+	}
+
+	if ierr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menyimpan pengguna ke MySQL: " + ierr.Error()})
+		return
+	}
+
+	newID, _ := res.LastInsertId()
+	newUser, err := findUserByID(int(newID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal membaca pengguna setelah insert."})
+		return
+	}
+
+	log.Printf("👤 Pengguna baru tersimpan ke MySQL somatic_db: id=%d email=%s uid=%s", newUser.ID, email, uid)
+	c.JSON(http.StatusCreated, gin.H{
+		"status":    "success",
+		"message":   "Pengguna berhasil disimpan ke MySQL somatic_db.",
+		"user_id":   newUser.ID,
+		"id":        newUser.ID,
+		"full_name": newUser.FullName,
+		"user":      newUser.payload(),
 	})
 }
 
@@ -1023,6 +1240,211 @@ func historyHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "user_id": userID, "data": history})
+}
+
+// createHistoryHandler menangani POST /api/history (Insert sesi skrining & resep ke MySQL somatic_db)
+func createHistoryHandler(c *gin.Context) {
+	var req struct {
+		UserID           interface{} `json:"user_id"`
+		IDSkrining       string      `json:"id_skrining"`
+		KodeSkrining     string      `json:"kode_skrining"`
+		KategoriBurnout  string      `json:"kategori_burnout"`
+		TingkatDepresi   string      `json:"tingkat_depresi"`
+		SkorAkustik      int         `json:"skor_akustik"`
+		SkorMotorik      int         `json:"skor_motorik"`
+		SkorSklera       int         `json:"skor_sklera"`
+		VisualScore      int         `json:"visual_score"`
+		VoiceScore       int         `json:"voice_score"`
+		SketchScore      int         `json:"sketch_score"`
+		GaitScore        int         `json:"gait_score"`
+		EyeLabel         string      `json:"eye_label"`
+		AudioLabel       string      `json:"audio_label"`
+		SketchLabel      string      `json:"sketch_label"`
+		GaitLabel        string      `json:"gait_label"`
+		FaceImagePath    string      `json:"face_image_path"`
+		DrawingImagePath string      `json:"drawing_image_path"`
+		AudioFilePath    string      `json:"audio_file_path"`
+		GaitRawData      string      `json:"gait_raw_data"`
+		DiagnosisSummary string      `json:"diagnosis_summary"`
+		IsEmergency      bool        `json:"is_emergency"`
+		AiRecipes        []struct {
+			IDResep         string `json:"id_resep"`
+			JenisIntervensi string `json:"jenis_intervensi"`
+			DeskripsiTugas  string `json:"deskripsi_tugas"`
+			IsCompleted     bool   `json:"is_completed"`
+		} `json:"ai_recipes"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Payload JSON tidak valid: " + err.Error()})
+		return
+	}
+
+	userID := resolveUserID(fmt.Sprintf("%v", req.UserID))
+	kode := req.KodeSkrining
+	if kode == "" {
+		kode = req.IDSkrining
+	}
+	if kode == "" {
+		kode = fmt.Sprintf("SCR-%d", time.Now().UnixMilli()%1000000)
+	}
+
+	kategori := req.KategoriBurnout
+	if kategori == "" {
+		kategori = req.TingkatDepresi
+	}
+	if kategori == "" {
+		kategori = "Kelelahan Terdeteksi"
+	}
+
+	visualScore := req.VisualScore
+	if visualScore <= 0 {
+		visualScore = req.SkorSklera
+	}
+	if visualScore <= 0 {
+		visualScore = 50
+	}
+
+	voiceScore := req.VoiceScore
+	if voiceScore <= 0 {
+		voiceScore = req.SkorAkustik
+	}
+	if voiceScore <= 0 {
+		voiceScore = 50
+	}
+
+	sketchScore := req.SketchScore
+	if sketchScore <= 0 {
+		sketchScore = req.SkorMotorik
+	}
+	if sketchScore <= 0 {
+		sketchScore = 50
+	}
+
+	gaitScore := req.GaitScore
+	if gaitScore <= 0 {
+		gaitScore = req.SkorMotorik
+	}
+	if gaitScore <= 0 {
+		gaitScore = 50
+	}
+
+	skorSklera := visualScore
+	skorAkustik := voiceScore
+	skorMotorik := (sketchScore + gaitScore) / 2
+
+	eyeLabel := req.EyeLabel
+	if eyeLabel == "" {
+		eyeLabel = "Normal"
+	}
+	audioLabel := req.AudioLabel
+	if audioLabel == "" {
+		audioLabel = "Stabil"
+	}
+	sketchLabel := req.SketchLabel
+	if sketchLabel == "" {
+		sketchLabel = "Relaks"
+	}
+	gaitLabel := req.GaitLabel
+	if gaitLabel == "" {
+		gaitLabel = "Simetris"
+	}
+
+	diagSummary := req.DiagnosisSummary
+	if diagSummary == "" {
+		diagSummary = fmt.Sprintf("Mata: %s (%d%%) • Suara: %s (%d%%) • Sketsa: %s (%d%%) • Gait: %s (%d%%)",
+			eyeLabel, visualScore, audioLabel, voiceScore, sketchLabel, sketchScore, gaitLabel, gaitScore)
+	}
+
+	// Cek apakah skrining dengan kode ini sudah tersimpan
+	var existingID int64
+	if err := db.QueryRow(`SELECT id FROM screening_sessions WHERE kode_skrining = ?`, kode).Scan(&existingID); err == nil && existingID > 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"status":      "success",
+			"message":     "Riwayat skrining sudah tersimpan sebelumnya di MySQL.",
+			"session_id":  existingID,
+			"id_skrining": kode,
+		})
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal memulai transaksi DB: " + err.Error()})
+		return
+	}
+
+	facePath := req.FaceImagePath
+	if facePath == "" {
+		facePath = "uploads/default_face.jpg"
+	}
+	drawingPath := req.DrawingImagePath
+	if drawingPath == "" {
+		drawingPath = "uploads/default_drawing.png"
+	}
+	audioPath := req.AudioFilePath
+	if audioPath == "" {
+		audioPath = "uploads/default_audio.wav"
+	}
+	gaitRaw := req.GaitRawData
+	if gaitRaw == "" {
+		gaitRaw = "gait_recorded"
+	}
+
+	res, err := tx.Exec(`
+		INSERT INTO screening_sessions
+		(kode_skrining, user_id, kategori_burnout, skor_akustik, skor_motorik, skor_sklera,
+		 visual_score, voice_score, sketch_score, gait_score,
+		 eye_label, audio_label, sketch_label, gait_label,
+		 face_image_path, drawing_image_path, audio_file_path, gait_raw_data,
+		 is_emergency, diagnosis_summary)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		kode, userID, kategori, skorAkustik, skorMotorik, skorSklera,
+		visualScore, voiceScore, sketchScore, gaitScore,
+		eyeLabel, audioLabel, sketchLabel, gaitLabel,
+		facePath, drawingPath, audioPath, gaitRaw,
+		req.IsEmergency, diagSummary,
+	)
+	if err != nil {
+		_ = tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menyimpan sesi skrining ke MySQL: " + err.Error()})
+		return
+	}
+
+	sessionID, _ := res.LastInsertId()
+
+	for i, r := range req.AiRecipes {
+		kodeResep := r.IDResep
+		if kodeResep == "" {
+			kodeResep = fmt.Sprintf("REC-%02d", i+1)
+		}
+		jenis := r.JenisIntervensi
+		if jenis == "" {
+			jenis = "Fisik"
+		}
+		desc := r.DeskripsiTugas
+		if desc == "" {
+			desc = "Istirahat sejenak dan hidrasi tubuh."
+		}
+		_, _ = tx.Exec(`
+			INSERT INTO ai_recipes (session_id, kode_resep, jenis_intervensi, deskripsi_tugas, is_completed)
+			VALUES (?, ?, ?, ?, ?)`,
+			sessionID, kodeResep, jenis, desc, r.IsCompleted,
+		)
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal commit transaksi: " + err.Error()})
+		return
+	}
+
+	log.Printf("🧾 Riwayat diagnosis berhasil di-POST dan disimpan ke MySQL: session_id=%d user_id=%d kode=%s", sessionID, userID, kode)
+	c.JSON(http.StatusCreated, gin.H{
+		"status":      "success",
+		"message":     "Riwayat skrining berhasil disimpan ke MySQL somatic_db.",
+		"session_id":  sessionID,
+		"id_skrining": kode,
+	})
 }
 
 func recoveryStage(score int) string {

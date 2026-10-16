@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/api_config.dart';
 import '../services/history_service.dart';
+import '../services/notification_service.dart';
 import '../theme/theme_controller.dart';
 import 'stage1_mental_screen.dart';
 import 'history_screen.dart';
@@ -24,6 +26,13 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _profile;
+  DateTime _scheduledScreeningTime = DateTime(
+    DateTime.now().year,
+    10, // Oktober
+    21,
+    13, // 1 PM
+    0,
+  );
 
   @override
   void initState() {
@@ -38,11 +47,125 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       await HistoryService.getHistoryList();
     } catch (_) {}
+    await _loadScreeningSchedule();
     if (!mounted) return;
 
     setState(() {
       _profile = data;
     });
+  }
+
+  Future<void> _loadScreeningSchedule() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('next_screening_datetime');
+      if (saved != null) {
+        final dt = DateTime.tryParse(saved);
+        if (dt != null && mounted) {
+          setState(() {
+            _scheduledScreeningTime = dt;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  String _formatHour(DateTime dt) {
+    int h = dt.hour;
+    if (h == 0) return "12";
+    if (h > 12) return "${h - 12}";
+    return "$h";
+  }
+
+  String _formatAmPm(DateTime dt) {
+    return dt.hour >= 12 ? "Pm." : "Am.";
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    if (month >= 1 && month <= 12) return months[month - 1];
+    return '';
+  }
+
+  Future<void> _pickNewScreeningSchedule() async {
+    final now = DateTime.now();
+    final DateTime initialDate = _scheduledScreeningTime.isAfter(now)
+        ? _scheduledScreeningTime
+        : now.add(const Duration(hours: 1));
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: 'PILIH TANGGAL SKRINING',
+      confirmText: 'LANJUT',
+      cancelText: 'BATAL',
+    );
+
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_scheduledScreeningTime),
+      helpText: 'PILIH JAM SKRINING',
+      confirmText: 'SIMPAN & AKTIFKAN PENGINGAT',
+      cancelText: 'BATAL',
+    );
+
+    if (pickedTime == null || !mounted) return;
+
+    final newSchedule = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    setState(() {
+      _scheduledScreeningTime = newSchedule;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('next_screening_datetime', newSchedule.toIso8601String());
+    } catch (_) {}
+
+    // Panggil fungsi untuk menjadwalkan notifikasi peringatan (15 menit sebelum waktu skrining tiba)
+    await notificationService.scheduleScreeningReminder(
+      screeningDateTime: newSchedule,
+      minutesBefore: 15,
+    );
+
+    if (!mounted) return;
+
+    final timeStr = "${newSchedule.hour.toString().padLeft(2, '0')}:${newSchedule.minute.toString().padLeft(2, '0')}";
+    final dateStr = "${newSchedule.day} ${_monthName(newSchedule.month)}";
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Yuk, luangkan waktu sejenak untuk skrining! Pengingat aktif 15 menit sebelum $dateStr pukul $timeStr WIB.",
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF314BB5),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   String _stageLabel(String stage) {
@@ -281,7 +404,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _buildMiniStatCard(ctx, 'Resep Selesai', '$done Selesai', Icons.task_alt_rounded, const Color(0xFFD97706), isDarkModal),
+                              child: _buildMiniStatCard(ctx, 'Goals Selesai', '$done Selesai', Icons.flag_outlined, const Color(0xFFD97706), isDarkModal),
                             ),
                           ],
                         ),
@@ -1141,6 +1264,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         ),
                                       ),
+                                      InkWell(
+                                        onTap: _pickNewScreeningSchedule,
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.22),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.edit_calendar_outlined, color: Colors.white, size: 14),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                "Atur",
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
 
@@ -1148,13 +1297,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Row(
+                                      Row(
                                         crossAxisAlignment: CrossAxisAlignment.baseline,
                                         textBaseline: TextBaseline.alphabetic,
                                         children: [
                                           Text(
-                                            "1",
-                                            style: TextStyle(
+                                            _formatHour(_scheduledScreeningTime),
+                                            style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 72,
                                               fontWeight: FontWeight.w900,
@@ -1162,10 +1311,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               letterSpacing: -2.0,
                                             ),
                                           ),
-                                          SizedBox(width: 8),
+                                          const SizedBox(width: 8),
                                           Text(
-                                            "Pm.",
-                                            style: TextStyle(
+                                            _formatAmPm(_scheduledScreeningTime),
+                                            style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 34,
                                               fontWeight: FontWeight.w900,
@@ -1176,7 +1325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        "21, Oktober",
+                                        "${_scheduledScreeningTime.day}, ${_monthName(_scheduledScreeningTime.month)}",
                                         style: TextStyle(
                                           color: Colors.white.withValues(alpha: 0.92),
                                           fontSize: 16,
@@ -1191,7 +1340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        "Progress Resep Anti-Zombi",
+                                        "Progress Goals Pemulihan",
                                         style: TextStyle(
                                           color: Colors.white.withValues(alpha: 0.9),
                                           fontSize: 12,
@@ -1548,7 +1697,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
 
-                          // Tab 2: Resep
+                          // Tab 2: Goals
                           InkWell(
                             onTap: () {
                               Navigator.push(
@@ -1562,10 +1711,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.auto_stories_outlined, size: 24, color: isDark ? Colors.white : colorScheme.primary),
+                                  Icon(Icons.flag_outlined, size: 24, color: isDark ? Colors.white : colorScheme.primary),
                                   const SizedBox(height: 3),
                                   Text(
-                                    "Resep",
+                                    "Goals",
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,

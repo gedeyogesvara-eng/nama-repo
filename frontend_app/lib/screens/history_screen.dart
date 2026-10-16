@@ -3,9 +3,9 @@ import '../services/auth_service.dart';
 import '../services/history_service.dart';
 
 /// Layar Riwayat Skrining (Modern Clean)
-/// Menampilkan rekapitulasi riwayat skrining dari MySQL (via Go backend)
-/// dengan kartu melengkung 28-32, shadow transparan halus, Deep Blue (#314BB5),
-/// dan kompatibel penuh dengan Dark Mode.
+/// Menampilkan rekapitulasi riwayat skrining dengan parsing warna & data aman,
+/// kartu berlekuk halus (BorderRadius.circular(32)), shadow pudar lembut (blurRadius: 10-15),
+/// aksen Deep Blue (#314BB5), dan kompatibilitas penuh dengan Dark Mode.
 class HistoryScreen extends StatefulWidget {
   final VoidCallback? onBackToDashboard;
   final VoidCallback? onStartNewScreening;
@@ -73,14 +73,59 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan MySQL menyala.';
+        _error = 'Tidak dapat memuat riwayat skrining. Pastikan backend Go (port 8081) dan database menyala.';
       });
+    }
+  }
+
+  /// Parser warna aman: Mencegah error "type 'int' is not a subtype of type 'Color'"
+  Color _parseColor(dynamic value, {Color fallback = const Color(0xFF1E3A8A)}) {
+    if (value == null) return fallback;
+    if (value is Color) return value;
+    if (value is int) return Color(value);
+    final str = value.toString().replaceAll('#', '').trim();
+    if (str.isEmpty) return fallback;
+    final parsed = int.tryParse(str.startsWith('0x') ? str : '0xFF$str') ?? int.tryParse(str);
+    return parsed != null ? Color(parsed) : fallback;
+  }
+
+  /// Parser ikon aman: Menghindari null icon atau type mismatch
+  IconData _parseIcon(dynamic icon, dynamic codePoint, String? category) {
+    if (icon is IconData) return icon;
+    final int? cp = codePoint is int ? codePoint : int.tryParse('$codePoint');
+    if (cp != null) {
+      if (cp == Icons.sentiment_very_satisfied_rounded.codePoint) {
+        return Icons.sentiment_very_satisfied_rounded;
+      }
+      if (cp == Icons.sentiment_satisfied_alt_rounded.codePoint) {
+        return Icons.sentiment_satisfied_alt_rounded;
+      }
+      if (cp == Icons.error_outline_rounded.codePoint) {
+        return Icons.error_outline_rounded;
+      }
+      if (cp == Icons.warning_amber_rounded.codePoint) {
+        return Icons.warning_amber_rounded;
+      }
+      // ignore: non_const_argument_for_const_parameter
+      return IconData(cp, fontFamily: 'MaterialIcons');
+    }
+    switch (category) {
+      case 'healthy':
+        return Icons.sentiment_very_satisfied_rounded;
+      case 'extreme':
+        return Icons.error_outline_rounded;
+      default:
+        return Icons.warning_amber_rounded;
     }
   }
 
   String get _averageScoreLabel {
     if (_history.isEmpty) return '-';
-    final total = _history.fold<int>(0, (sum, item) => sum + (item['score'] as int));
+    final total = _history.fold<int>(0, (sum, item) {
+      final s = item['score'];
+      final scoreVal = s is num ? s.toInt() : (int.tryParse('$s') ?? 50);
+      return sum + scoreVal;
+    });
     return '${(total / _history.length).round()} / 100';
   }
 
@@ -116,12 +161,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -140,14 +185,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 44,
+            height: 46,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Coba Lagi', style: TextStyle(fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryBlue,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                 elevation: 0,
               ),
               onPressed: _loadHistory,
@@ -164,12 +209,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -231,7 +276,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     else if (_history.isEmpty)
                       _buildNoHistoryState(isDark)
                     else ...[
-                      // Stat Overview Banner
+                      // Stat Overview Banner (Modern Clean BorderRadius 32)
                       _buildStatBanner(isDark, textTheme),
                       const SizedBox(height: 18),
 
@@ -249,8 +294,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(height: 20),
 
                     // Bottom Button: Skrining Baru
-                    SizedBox(
-                      height: 54,
+                    Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.25),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.add_chart_rounded, size: 20),
                         label: const Text(
@@ -268,7 +323,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(32),
                           ),
-                          shadowColor: primaryBlue.withValues(alpha: 0.35),
                         ),
                         onPressed: widget.onStartNewScreening ??
                             () => Navigator.pushNamed(context, '/stage1'),
@@ -305,7 +359,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -373,18 +427,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // --- STAT OVERVIEW BANNER (MODERN CLEAN CARD) ---
+  // --- STAT OVERVIEW BANNER (MODERN CLEAN CARD BORDER-RADIUS 32) ---
   Widget _buildStatBanner(bool isDark, TextTheme textTheme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -497,22 +551,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // --- HISTORY CARD ITEM (MODERN CLEAN CARD) ---
+  // --- HISTORY CARD ITEM (MODERN CLEAN CARD BORDER-RADIUS 32) ---
   Widget _buildHistoryCard(BuildContext context, Map<String, dynamic> item, bool isDark, TextTheme textTheme) {
-    final Color accentColor = item['accentColor'] ?? primaryBlue;
-    final Color bgTint = accentColor.withValues(alpha: isDark ? 0.22 : 0.1);
+    // Parsing warna secara aman menggunakan fallback Deep Blue
+    final Color accentColor = _parseColor(item['accentColor'], fallback: primaryBlue);
+    final Color bgTint = _parseColor(item['bgTint'], fallback: accentColor.withValues(alpha: isDark ? 0.22 : 0.1));
+    final IconData statusIcon = _parseIcon(item['icon'], item['iconCodePoint'], item['category']?.toString());
+
+    // Parsing data transaksi & string secara aman
+    final String dateStr = (item['date'] ?? '-').toString();
+    final String timeStr = (item['time'] ?? '').toString();
+    final String dateTimeDisplay = timeStr.isNotEmpty ? '$dateStr • $timeStr' : dateStr;
+    final String idStr = (item['id'] ?? 'SCR-00').toString();
+    final String titleStr = (item['title'] ?? 'Skrining Selesai').toString();
+    final String badgeStr = (item['badgeText'] ?? '${item['score'] ?? 0}/100').toString();
+    final String summaryStr = (item['summary'] ?? '-').toString();
+
+    final Map<String, dynamic> details = item['details'] is Map
+        ? Map<String, dynamic>.from(item['details'] as Map)
+        : {};
+
+    String getMetric(String key) {
+      final m = details[key];
+      if (m is Map) return '${m['score'] ?? '-'}';
+      return '-';
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -527,14 +602,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 children: [
                   Icon(
                     Icons.calendar_today_rounded,
-                    size: 12,
+                    size: 13,
                     color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${item['date']} • ${item['time']}',
+                    dateTimeDisplay,
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
@@ -548,7 +623,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  item['id'],
+                  idStr,
                   style: const TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
@@ -559,44 +634,44 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Main Row: Icon + Title + Score Badge
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: bgTint,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(item['icon'], color: accentColor, size: 22),
+                child: Icon(statusIcon, color: accentColor, size: 24),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['title'],
+                      titleStr,
                       style: textTheme.titleSmall?.copyWith(
-                        fontSize: 14.5,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2.5),
                       decoration: BoxDecoration(
                         color: bgTint,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        item['badgeText'],
+                        badgeStr,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w700,
                           color: accentColor,
                         ),
@@ -607,15 +682,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           // Ringkasan Teks
           Text(
-            item['summary'],
+            summaryStr,
             style: textTheme.bodySmall?.copyWith(
-              fontSize: 12,
+              fontSize: 12.5,
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              height: 1.4,
+              height: 1.45,
             ),
           ),
           const SizedBox(height: 14),
@@ -625,24 +700,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _buildMicroMetricPill('🎙️ Suara', item['details']['suara']['score'], isDark),
-              _buildMicroMetricPill('🚶 Gait', item['details']['gait']['score'], isDark),
-              _buildMicroMetricPill('👁️ Visual', item['details']['visual']['score'], isDark),
-              _buildMicroMetricPill('✏️ Sketsa', item['details']['sketsa']['score'], isDark),
+              _buildMicroMetricPill('🎙️ Suara', getMetric('suara'), isDark),
+              _buildMicroMetricPill('🚶 Gait', getMetric('gait'), isDark),
+              _buildMicroMetricPill('👁️ Visual', getMetric('visual'), isDark),
+              _buildMicroMetricPill('✏️ Sketsa', getMetric('sketsa'), isDark),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
           // Action Button: Lihat Rincian
           InkWell(
             onTap: () => _showDetailBottomSheet(context, item, isDark, textTheme),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(32),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
-                borderRadius: BorderRadius.circular(16),
+                color: primaryBlue.withValues(alpha: isDark ? 0.22 : 0.08),
+                borderRadius: BorderRadius.circular(32),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -650,13 +725,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Text(
                     'Lihat Analisis Lengkap',
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: primaryBlue,
                     ),
                   ),
                   SizedBox(width: 6),
-                  Icon(Icons.arrow_forward_rounded, size: 14, color: primaryBlue),
+                  Icon(Icons.arrow_forward_rounded, size: 15, color: primaryBlue),
                 ],
               ),
             ),
@@ -690,12 +765,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(top: 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -722,7 +797,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // --- MODAL BOTTOM SHEET DETAIL ANALISIS (MODERN CLEAN) ---
   void _showDetailBottomSheet(BuildContext context, Map<String, dynamic> item, bool isDark, TextTheme textTheme) {
-    final details = item['details'] as Map<String, dynamic>;
+    final Map<String, dynamic> details = item['details'] is Map
+        ? Map<String, dynamic>.from(item['details'] as Map)
+        : {};
+
+    final String dateStr = (item['date'] ?? '-').toString();
+    final String timeStr = (item['time'] ?? '').toString();
+    final String dateTimeDisplay = timeStr.isNotEmpty ? '$dateStr • $timeStr' : dateStr;
+    final String idStr = (item['id'] ?? 'SCR-00').toString();
+    final String titleStr = (item['title'] ?? 'Skrining Selesai').toString();
 
     showModalBottomSheet(
       context: context,
@@ -732,7 +815,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         return Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
@@ -741,7 +824,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(26.0),
           child: SafeArea(
             child: SingleChildScrollView(
               child: Column(
@@ -770,7 +853,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item['title'],
+                              titleStr,
                               style: textTheme.titleMedium?.copyWith(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
@@ -779,7 +862,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${item['date']} • ${item['time']}',
+                              dateTimeDisplay,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -795,7 +878,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          item['id'],
+                          idStr,
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -816,18 +899,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(height: 22),
 
                   // Tombol Tutup
-                  SizedBox(
+                  Container(
                     width: double.infinity,
-                    height: 50,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.22),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryBlue,
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                       ),
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Tutup Analisis', style: TextStyle(fontWeight: FontWeight.w700)),
+                      child: const Text('Tutup Analisis', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     ),
                   ),
                 ],
@@ -839,13 +932,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildDetailRow(String title, Map<String, dynamic> data, bool isDark, TextTheme textTheme) {
+  Widget _buildDetailRow(String title, dynamic dataRaw, bool isDark, TextTheme textTheme) {
+    final Map<String, dynamic> data = dataRaw is Map ? Map<String, dynamic>.from(dataRaw) : {};
+    final String scoreStr = (data['score'] ?? '-').toString();
+    final String descStr = (data['desc'] ?? data['diagnosis'] ?? '-').toString();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF141414) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -856,19 +953,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                   color: isDark ? Colors.white : const Color(0xFF1E293B),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
                   color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.1),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  data['score'] ?? '-',
+                  scoreStr,
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -880,9 +977,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            data['diagnosis'] ?? '-',
+            descStr,
             style: textTheme.bodySmall?.copyWith(
-              fontSize: 11.5,
+              fontSize: 12,
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               height: 1.35,
             ),

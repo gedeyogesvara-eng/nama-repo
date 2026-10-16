@@ -24,7 +24,7 @@ void main() {
 
       expect(find.byType(DashboardScreen), findsOneWidget);
       expect(find.text("EMO-SENSE AI"), findsOneWidget);
-      expect(find.textContaining("Resep Anti-Zombi"), findsOneWidget);
+      expect(find.textContaining("Goals"), findsWidgets);
     });
 
     testWidgets('2. HistoryScreen renders empty state when historyList is empty', (WidgetTester tester) async {
@@ -95,6 +95,37 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text("Pengingat skrining aktif setiap jam 19.00 WIB"), findsOneWidget);
+    });
+
+    test('6. NotificationService zoned scheduling for screening and goals', () async {
+      await notificationService.clearNotificationHistory();
+
+      // Jadwalkan skrining
+      final screeningTime = DateTime.now().add(const Duration(hours: 2));
+      await notificationService.scheduleScreeningReminder(
+        screeningDateTime: screeningTime,
+        minutesBefore: 15,
+      );
+
+      var history = await notificationService.getNotificationHistory();
+      expect(history.length, equals(1));
+      expect(history.first['title'], equals('Yuk, luangkan waktu sejenak untuk skrining!'));
+      expect(history.first['body'], contains('15 menit'));
+
+      // Jadwalkan goal routine reminder
+      await notificationService.scheduleGoalReminder(
+        goalId: 42,
+        goalTitle: 'Detoks Layar 30 Menit',
+        time: const TimeOfDay(hour: 20, minute: 0),
+      );
+
+      history = await notificationService.getNotificationHistory();
+      expect(history.length, equals(2));
+      expect(history.first['title'], equals('Waktunya menyelesaikan goals pemulihanmu hari ini!'));
+      expect(history.first['body'], contains('Detoks Layar 30 Menit'));
+
+      // Test cancel goal reminder
+      await notificationService.cancelGoalReminder(42);
     });
   });
 }

@@ -134,7 +134,7 @@ class _ModerateResultScreenState extends State<ModerateResultScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      "Ditemukan penurunan ritme gait dan jeda vokal lebih lambat. Lakukan resep pemulihan anti-zombie berikut:",
+                      "Ditemukan penurunan ritme gait dan jeda vokal lebih lambat. Capai target goals pemulihan berikut:",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
@@ -179,7 +179,7 @@ class _ModerateResultScreenState extends State<ModerateResultScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            "🏃 RESEP FISIK",
+                            "🏃 GOALS FISIK",
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
@@ -220,7 +220,7 @@ class _ModerateResultScreenState extends State<ModerateResultScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            "🧠 RESEP MENTAL",
+                            "🧠 GOALS MENTAL",
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
@@ -330,9 +330,9 @@ class _ModerateResultScreenState extends State<ModerateResultScreen> {
 
               const SizedBox(height: 24),
 
-              // Button: "Selesaikan Resep" -> Dashboard
+              // Button: "Selesaikan Goals" -> Dashboard
               NeoButton(
-                text: "Selesaikan Resep & Kembali",
+                text: "Selesaikan Goals & Kembali",
                 icon: Icons.check_circle_outline_rounded,
                 backgroundColor: NeoColors.primaryBlue,
                 textColor: NeoColors.white,

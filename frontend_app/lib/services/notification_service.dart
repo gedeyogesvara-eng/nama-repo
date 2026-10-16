@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Service untuk menangani inisialisasi, pengiriman, dan penjadwalan notifikasi lokal.
+/// Service untuk menangani inisialisasi, pengiriman, dan penjadwalan notifikasi lokal (Zoned Schedule).
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -23,7 +23,7 @@ class NotificationService {
   bool get _isTestEnv =>
       !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
-  /// 1. Inisialisasi pengaturan Android dengan ikon bawaan @mipmap/ic_launcher
+  /// 1. Inisialisasi pengaturan Android & iOS dengan ikon bawaan @mipmap/ic_launcher
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -36,6 +36,11 @@ class NotificationService {
       // Inisialisasi TimeZone untuk penjadwalan presisi
       try {
         tz.initializeTimeZones();
+        try {
+          tz.setLocalLocation(tz.getLocation('Asia/Jakarta'));
+        } catch (_) {
+          // Fallback ke default timezone jika Asia/Jakarta tidak terpetakan
+        }
       } catch (tzError) {
         debugPrint("TimeZone init notice: $tzError");
       }
@@ -65,11 +70,17 @@ class NotificationService {
         },
       );
 
-      // Meminta izin runtime notifikasi untuk Android 13+ (Tiramisu / API 33)
+      // Meminta izin runtime notifikasi untuk Android 13+ (API 33+)
       if (!kIsWeb) {
-        final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        final androidPlugin = _notificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
         await androidPlugin?.requestNotificationsPermission();
+        try {
+          await androidPlugin?.requestExactAlarmsPermission();
+        } catch (e) {
+          debugPrint("ℹ️ [NotificationService] Exact alarm notice: $e");
+        }
       }
 
       _isInitialized = true;
@@ -77,6 +88,184 @@ class NotificationService {
     } catch (e) {
       debugPrint("⚠️ [NotificationService] Gagal inisialisasi: $e");
     }
+  }
+
+  /// 2. Menjadwalkan notifikasi presisi berbasis zona waktu (Zoned Schedule Notification)
+  Future<bool> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDateTime,
+    String? payload,
+    String type = 'reminder',
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    DateTime targetTime = scheduledDateTime;
+    final now = DateTime.now();
+
+    // Jika waktu yang dipilih sudah lewat hari ini dan tanpa pengulangan, sesuaikan ke 1 menit ke depan
+    if (targetTime.isBefore(now) && matchDateTimeComponents == null) {
+      targetTime = now.add(const Duration(minutes: 1));
+    }
+
+    tz.TZDateTime scheduledDate;
+    try {
+      scheduledDate = tz.TZDateTime.from(targetTime, tz.local);
+    } catch (_) {
+      try {
+        tz.initializeTimeZones();
+        scheduledDate = tz.TZDateTime.from(targetTime, tz.local);
+      } catch (e) {
+        debugPrint("⚠️ [NotificationService] TimeZone fallback: $e");
+        scheduledDate = tz.TZDateTime.now(tz.local).add(const Duration(minutes: 1));
+      }
+    }
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'scheduled_reminders_channel',
+      'Pengingat Jadwal & Goals RestGuard',
+      channelDescription:
+          'Kanal pengingat terjadwal untuk waktu skrining dan pencapaian target goals pemulihan',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      color: const Color(0xFF314BB5),
+      enableVibration: true,
+      playSound: true,
+    );
+
+    final NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    if (!_isTestEnv) {
+      try {
+        await _notificationsPlugin.zonedSchedule(
+          id: id,
+          scheduledDate: scheduledDate,
+          notificationDetails: platformDetails,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          title: title,
+          body: body,
+          payload: payload ?? 'schedule_$id',
+          matchDateTimeComponents: matchDateTimeComponents,
+        );
+        debugPrint("📅 [NotificationService] ZonedSchedule berhasil dijadwalkan: #$id pada $scheduledDate");
+      } catch (e) {
+        debugPrint("⚠️ [NotificationService] Exact alarm fallback: $e");
+        try {
+          await _notificationsPlugin.zonedSchedule(
+            id: id,
+            scheduledDate: scheduledDate,
+            notificationDetails: platformDetails,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            title: title,
+            body: body,
+            payload: payload ?? 'schedule_$id',
+            matchDateTimeComponents: matchDateTimeComponents,
+          );
+        } catch (err) {
+          debugPrint("⚠️ [NotificationService] Gagal zonedSchedule: $err");
+        }
+      }
+    }
+
+    // Catat ke riwayat lokal agar pengguna melihat notifikasi yang dijadwalkan
+    await addNotificationToHistory(
+      title: title,
+      body: body,
+      type: type,
+    );
+
+    return true;
+  }
+
+  /// 3. Menjadwalkan Pengingat Skrining (misal 15 menit sebelum waktu skrining tiba)
+  Future<bool> scheduleScreeningReminder({
+    required DateTime screeningDateTime,
+    int minutesBefore = 15,
+  }) async {
+    final DateTime reminderTime =
+        screeningDateTime.subtract(Duration(minutes: minutesBefore));
+    final DateTime targetTime =
+        reminderTime.isBefore(DateTime.now()) ? screeningDateTime : reminderTime;
+
+    const String title = "Yuk, luangkan waktu sejenak untuk skrining!";
+    final String timeStr =
+        "${screeningDateTime.hour.toString().padLeft(2, '0')}:${screeningDateTime.minute.toString().padLeft(2, '0')}";
+    final String body =
+        "Pengingat Skrining: Waktunya cek ritme tubuh dan kesehatan mentalmu pukul $timeStr WIB (15 menit lagi)!";
+
+    return await scheduleNotification(
+      id: 1001,
+      title: title,
+      body: body,
+      scheduledDateTime: targetTime,
+      payload: 'screening_reminder_1001',
+      type: 'reminder',
+    );
+  }
+
+  /// 4. Menjadwalkan Pengingat Rutinitas Target Goals (Harian / Berulang)
+  Future<bool> scheduleGoalReminder({
+    required int goalId,
+    required String goalTitle,
+    required TimeOfDay time,
+  }) async {
+    final now = DateTime.now();
+    var scheduledDateTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+    );
+
+    // Jika jam hari ini sudah lewat, jadwalkan untuk besok
+    if (scheduledDateTime.isBefore(now)) {
+      scheduledDateTime = scheduledDateTime.add(const Duration(days: 1));
+    }
+
+    const String title = "Waktunya menyelesaikan goals pemulihanmu hari ini!";
+    final String timeStr =
+        "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+    final String body =
+        "Fokus Pemulihan: Waktunya '$goalTitle' (Target $timeStr WIB). Yuk, luangkan waktu sejenak!";
+
+    final int notifId = 3000 + (goalId % 5000);
+
+    return await scheduleNotification(
+      id: notifId,
+      title: title,
+      body: body,
+      scheduledDateTime: scheduledDateTime,
+      payload: 'goal_reminder_$goalId',
+      type: 'reminder',
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  /// 5. Membatalkan Pengingat Notifikasi Berdasarkan ID
+  Future<void> cancelNotification(int id) async {
+    if (!_isTestEnv) {
+      try {
+        await _notificationsPlugin.cancel(id: id);
+        debugPrint("🔕 [NotificationService] Notifikasi #$id berhasil dibatalkan.");
+      } catch (e) {
+        debugPrint("⚠️ [NotificationService] Gagal membatalkan notifikasi #$id: $e");
+      }
+    }
+  }
+
+  /// Membatalkan pengingat goal tertentu
+  Future<void> cancelGoalReminder(int goalId) async {
+    final int notifId = 3000 + (goalId % 5000);
+    await cancelNotification(notifId);
   }
 
   /// Menampilkan / mencatat notifikasi peringatan zombi (format fleksibel)
@@ -89,7 +278,7 @@ class NotificationService {
     await addNotificationToHistory(title: title, body: body, type: 'warning');
   }
 
-  /// 2. Notifikasi Darurat ketika pengguna mendapatkan hasil diagnosis buruk (Zombie/Burnout Akut)
+  /// Notifikasi Darurat ketika pengguna mendapatkan hasil diagnosis buruk (Zombie/Burnout Akut)
   Future<void> showZombieWarningNotification({
     String? title,
     String? body,
@@ -153,11 +342,23 @@ class NotificationService {
     required String body,
     String type = 'scheduled',
   }) async {
-    debugPrint("📅 [NotificationService] Pengingat dijadwalkan pada jam $hour:$minute - $title");
-    await addNotificationToHistory(title: title, body: body, type: type);
+    final now = DateTime.now();
+    var scheduledDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+    if (scheduledDateTime.isBefore(now)) {
+      scheduledDateTime = scheduledDateTime.add(const Duration(days: 1));
+    }
+
+    await scheduleNotification(
+      id: 2000 + hour * 60 + minute,
+      title: title,
+      body: body,
+      scheduledDateTime: scheduledDateTime,
+      type: type,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
   }
 
-  /// 3. Menjadwalkan notifikasi tepat 24 jam setelah skrining terakhir dilakukan
+  /// Menjadwalkan notifikasi tepat 24 jam setelah skrining terakhir dilakukan
   Future<void> scheduleNextDayReminder({
     String? customBody,
   }) async {
