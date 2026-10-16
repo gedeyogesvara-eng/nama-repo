@@ -3,13 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import '../services/media_utils.dart';
-import '../theme/neo_colors.dart';
-import '../widgets/neo_button.dart';
 import 'stage2_physical_screen.dart';
 
 /// Layar Skrining Tahap 1: Perekaman Suara (Talk / Voice)
-/// Berfokus murni pada curhat suara pengguna dengan suasana yang hangat dan ramah,
-/// tanpa instruksi teknis yang berbelit.
+/// Desain 'Modern Clean' dengan aksen Deep Blue, sudut lengkung halus (BorderRadius.circular(32)),
+/// bayangan lembut, dan kompatibilitas penuh dengan Dark Mode.
 class Stage1MentalScreen extends StatefulWidget {
   const Stage1MentalScreen({super.key});
 
@@ -19,21 +17,20 @@ class Stage1MentalScreen extends StatefulWidget {
 
 class _Stage1MentalScreenState extends State<Stage1MentalScreen>
     with SingleTickerProviderStateMixin {
+  static const Color primaryBlue = Color(0xFF314BB5);
+
   bool _isRecordingVoice = false;
   bool _voiceSaved = false;
   int _voiceSeconds = 15;
   Timer? _voiceTimer;
   bool _isSavingData = false;
 
-  // Perekam mikrofon dibuat lazy (hanya saat tombol mikrofon ditekan)
   AudioRecorder? _recorder;
   StreamSubscription<Uint8List>? _pcmSubscription;
   final List<int> _pcmBytes = [];
   bool _realRecordingActive = false;
 
-  /// Audio WAV hasil rekaman (null jika belum merekam)
   Uint8List? _audioBytes;
-
   static const int _sampleRate = 16000;
   late AnimationController _pulseController;
 
@@ -64,9 +61,12 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
       SnackBar(
         content: Text(
           message,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
-        backgroundColor: isError ? NeoColors.redDark : NeoColors.slateDark,
+        backgroundColor: isError ? const Color(0xFFDC2626) : const Color(0xFF334155),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
@@ -75,7 +75,6 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
     if (!_isRecordingVoice) {
       await _startRecording();
     } else {
-      // Tombol ditekan kedua kali: berhenti merekam & simpan suara
       await _finishRecording();
     }
   }
@@ -85,8 +84,6 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
     _audioBytes = null;
     _realRecordingActive = false;
 
-    // Coba mikrofon nyata (Web: izin browser, Android/iOS: izin sistem).
-    // Jika gagal, rekaman disimulasikan agar alur tidak macet.
     try {
       final recorder = _recorder ??= AudioRecorder();
       if (await recorder.hasPermission()) {
@@ -150,7 +147,6 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
       _realRecordingActive = false;
     }
 
-    // PCM16 mono 16 kHz -> WAV. Kurang dari ~0,1 detik dianggap gagal -> sintetis.
     if (_pcmBytes.length >= _sampleRate ~/ 5) {
       _audioBytes = MediaUtils.pcm16ToWav(Uint8List.fromList(_pcmBytes), sampleRate: _sampleRate);
     } else {
@@ -171,14 +167,12 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
       _isSavingData = true;
     });
 
-    // Jika masih merekam saat tombol ditekan, hentikan & simpan dulu
     if (_isRecordingVoice) {
       await _finishRecording();
     }
 
     if (!mounted) return;
 
-    // Navigasikan ke Tahap 2 dengan membawa data Stage 1 (audio bytes)
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -198,32 +192,60 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: NeoColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: NeoColors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: NeoColors.primaryBlue,
-              child: Icon(Icons.mic_rounded, size: 18, color: Colors.white),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12.0),
+          child: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: isDark ? Colors.white : primaryBlue,
+                size: 18,
+              ),
             ),
-            SizedBox(width: 10),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryBlue.withValues(alpha: isDark ? 0.25 : 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.mic_rounded, size: 16, color: primaryBlue),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 "Tahap 1: Curhat Suara",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: NeoColors.black,
+                style: textTheme.titleMedium?.copyWith(
+                  color: isDark ? Colors.white : primaryBlue,
+                  fontWeight: FontWeight.w800,
                   fontSize: 17,
-                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
@@ -238,55 +260,54 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
             children: [
               const SizedBox(height: 12),
 
-              // KARTU CURHAT & TEKS RAMAH TO THE POINT
+              // KARTU CURHAT MODERN CLEAN DENGAN SUDUT MELENGKUNG 32 & BAYANGAN HALUS
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                      color: NeoColors.primaryBlue.withValues(alpha: 0.08),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: NeoColors.primaryBlue.withValues(alpha: 0.1),
+                        color: primaryBlue.withValues(alpha: isDark ? 0.2 : 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.record_voice_over_rounded,
-                        color: NeoColors.primaryBlue,
+                        color: primaryBlue,
                         size: 32,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       "Curhatlah kepada kami...",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: textTheme.headlineSmall?.copyWith(
                         fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: NeoColors.black,
-                        letterSpacing: -0.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        letterSpacing: -0.4,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Teks ramah satu kalimat sesuai permintaan user
-                    const Text(
+                    Text(
                       "Apa yang membebanimu hari ini? Bicaralah dengan santai, kami mendengarkan.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: NeoColors.darkGray,
-                        height: 1.4,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        height: 1.45,
                       ),
                     ),
                   ],
@@ -295,23 +316,22 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
 
               const Spacer(),
 
-              // TOMBOL MIKROFON BESAR INTERAKTIF
+              // TOMBOL MIKROFON BESAR INTERAKTIF DENGAN GLOW PULSE MODERN
               Center(
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Lingkaran animasi pulse saat sedang merekam
                     if (_isRecordingVoice)
                       AnimatedBuilder(
                         animation: _pulseController,
                         builder: (context, child) {
                           return Container(
-                            width: 140 + (_pulseController.value * 28),
-                            height: 140 + (_pulseController.value * 28),
+                            width: 140 + (_pulseController.value * 32),
+                            height: 140 + (_pulseController.value * 32),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFEF4444).withValues(
-                                alpha: 0.25 - (_pulseController.value * 0.15),
+                                alpha: 0.22 - (_pulseController.value * 0.14),
                               ),
                             ),
                           );
@@ -328,16 +348,16 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
                         decoration: BoxDecoration(
                           color: _isRecordingVoice
                               ? const Color(0xFFEF4444)
-                              : (_voiceSaved ? const Color(0xFF10B981) : NeoColors.primaryBlue),
+                              : (_voiceSaved ? const Color(0xFF10B981) : primaryBlue),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
                               color: (_isRecordingVoice
                                       ? const Color(0xFFEF4444)
-                                      : (_voiceSaved ? const Color(0xFF10B981) : NeoColors.primaryBlue))
+                                      : (_voiceSaved ? const Color(0xFF10B981) : primaryBlue))
                                   .withValues(alpha: 0.35),
-                              blurRadius: 24,
-                              offset: const Offset(0, 10),
+                              blurRadius: 28,
+                              offset: const Offset(0, 12),
                             ),
                           ],
                         ),
@@ -346,7 +366,7 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
                             _isRecordingVoice
                                 ? Icons.stop_rounded
                                 : (_voiceSaved ? Icons.check_rounded : Icons.mic_rounded),
-                            size: 50,
+                            size: 48,
                             color: Colors.white,
                           ),
                         ),
@@ -358,15 +378,15 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
 
               const SizedBox(height: 24),
 
-              // STATUS & HITUNG MUNDUR REKAMAN
+              // STATUS & HITUNG MUNDUR REKAMAN (MODERN CAPSULE PILL)
               Column(
                 children: [
                   if (_isRecordingVoice)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(16),
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -380,7 +400,7 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
                             "Merekam... Sisa $_voiceSeconds detik",
                             style: const TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: Color(0xFFDC2626),
                             ),
                           ),
@@ -389,34 +409,34 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
                     )
                   else if (_voiceSaved)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1FAE5),
-                        borderRadius: BorderRadius.circular(16),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF059669)),
+                          Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF10B981)),
                           SizedBox(width: 6),
                           Text(
                             "Suara tersimpan dengan baik",
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF059669),
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF10B981),
                             ),
                           ),
                         ],
                       ),
                     )
                   else
-                    const Text(
+                    Text(
                       "Ketuk mikrofon untuk mulai bicara",
-                      style: TextStyle(
+                      style: textTheme.bodyMedium?.copyWith(
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: NeoColors.slateLight,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       ),
                     ),
                   const SizedBox(height: 6),
@@ -426,8 +446,8 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
                         : (_voiceSaved ? "Ketuk lagi jika ingin merekam ulang" : "Batas waktu maksimal 15 detik"),
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w400,
+                      color: isDark ? const Color(0xFF64748B) : Colors.grey.shade500,
                     ),
                   ),
                 ],
@@ -435,15 +455,36 @@ class _Stage1MentalScreenState extends State<Stage1MentalScreen>
 
               const Spacer(),
 
-              // TOMBOL LANJUT KE TAHAP 2
-              NeoButton(
-                text: _isSavingData ? "Menyimpan Suara..." : "Lanjut ke Tahap 2 →",
-                icon: _isSavingData ? Icons.sync : Icons.arrow_forward_rounded,
-                backgroundColor: NeoColors.primaryBlue,
-                textColor: NeoColors.white,
-                borderRadius: 28,
-                height: 54,
-                onPressed: _isSavingData ? null : _handleProceedToStage2,
+              // TOMBOL LANJUT KE TAHAP 2 (MODERN CLEAN DENGAN SUDUT 32)
+              SizedBox(
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: _isSavingData ? null : _handleProceedToStage2,
+                  icon: _isSavingData
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Icon(Icons.arrow_forward_rounded, size: 20),
+                  label: Text(
+                    _isSavingData ? "Menyimpan Suara..." : "Lanjut ke Tahap 2 →",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryBlue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    shadowColor: primaryBlue.withValues(alpha: 0.35),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
             ],

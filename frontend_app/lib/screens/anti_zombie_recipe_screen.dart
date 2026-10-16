@@ -262,8 +262,8 @@ class _AntiZombieRecipeScreenState extends State<AntiZombieRecipeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = themeController.isDarkMode;
-    final scaffoldBg = isDark ? const Color(0xFF121217) : const Color(0xFFF2F1EB);
-    final cardBg = isDark ? const Color(0xFF1E1E26) : Colors.white;
+    final scaffoldBg = isDark ? const Color(0xFF121212) : const Color(0xFFF2F1EB);
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textCol = isDark ? Colors.white : const Color(0xFF111827);
     final subCol = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF4B5563);
 
