@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🧠 Somatic.AI</h1>
+  <h1>Destress</h1>
   <p><strong>Deteksi Dini Kesehatan Mental dan Fisik Multimodal Terintegrasi</strong></p>
   <p><i>Submission for COMPE JOINTS UGM - Kategori Healthcare</i></p>
 </div>
@@ -9,11 +9,11 @@
 ## 📖 Latar Belakang Masalah
 Dalam ekosistem modern yang serba cepat, tingkat stres di kalangan pekerja profesional dan mahasiswa semakin tidak terkendali. Seringkali, individu **tidak menyadari bahwa mereka sedang mengalami stres kronis atau *burnout*** hingga kondisi tersebut bermanifestasi menjadi masalah kesehatan mental atau fisik yang parah. Saat ini, metode diagnosis dini yang tersedia mayoritas masih bergantung pada kuesioner subjektif yang rentan terhadap bias pelaporan diri (*self-reporting bias*). Aksesibilitas untuk melakukan deteksi dini terhadap penurunan kondisi kesehatan secara objektif masih sangat minim di masyarakat.
 
-## 💡 Solusi: Somatic.AI
-**Somatic.AI** adalah aplikasi kesehatan terpadu yang memanfaatkan kecerdasan buatan (AI) untuk melakukan deteksi dini terhadap kondisi kesehatan mental dan fisik pengguna secara objektif. Menggunakan pendekatan **Multimodal AI**, aplikasi ini menganalisis tiga parameter biologis manusia yang sering kali menunjukkan gejala awal stres dan kelelahan: visual (mata), akustik (suara), dan kinematik (gerakan tubuh).
+## 💡 Solusi: Destress
+**Destress** adalah aplikasi kesehatan terpadu yang memanfaatkan kecerdasan buatan (AI) untuk melakukan deteksi dini terhadap kondisi kesehatan mental dan fisik pengguna secara objektif. Menggunakan pendekatan **Multimodal AI**, aplikasi ini menganalisis tiga parameter biologis manusia yang sering kali menunjukkan gejala awal stres dan kelelahan: visual (mata), akustik (suara), dan kinematik (gerakan tubuh).
 
 ### 🚀 Keunggulan Kompetitif (*Unique Value Proposition*)
-Berbeda dengan aplikasi *mental health* konvensional yang hanya mengandalkan jurnal atau kuesioner, Somatic.AI menawarkan:
+Berbeda dengan aplikasi *mental health* konvensional yang hanya mengandalkan jurnal atau kuesioner, Destress menawarkan:
 1. **Diagnosis Berbasis Bio-Signal (Objektif):** Terintegrasi secara *end-to-end* dengan 3 arsitektur *Deep Learning* yang menganalisis indikator fisik nyata.
 2. **Ekosistem Terpusat:** Menyatukan analisis visual, audio, dan sensor gerak ke dalam satu *Super-API* yang ringan dan bekerja secara *real-time*.
 3. **Privasi & Aksesibilitas:** Analisis dilakukan secara komputasional tanpa intervensi manusia, memberikan ruang aman bagi pengguna untuk memantau kesehatan mental mereka sendiri.
